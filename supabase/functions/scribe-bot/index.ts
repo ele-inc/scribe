@@ -1,4 +1,4 @@
-import { Bot, webhookCallback } from 'https://deno.land/x/grammy@v1.34.0/mod.ts';
+import { Bot, webhookCallback, InputFile } from 'https://deno.land/x/grammy@v1.34.0/mod.ts';
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { ElevenLabsClient } from 'npm:elevenlabs@1.50.5';
@@ -48,10 +48,23 @@ async function scribe({
     transcript = scribeResult.text;
     languageCode = scribeResult.language_code;
 
-    // Reply to the user with the transcript
-    await bot.api.sendMessage(chatId, transcript, {
-      reply_parameters: { message_id: messageId },
-    });
+    // Check if transcript exists before creating file
+    if (transcript) {
+      // Create a Blob and convert it to InputFile for Telegram API
+      const textBlob = new Blob([transcript], { type: 'text/plain' });
+      const inputFile = new InputFile(textBlob, 'transcript.txt');
+
+      // Reply to the user with the transcript as a text file
+      await bot.api.sendDocument(chatId, inputFile, {
+        reply_parameters: { message_id: messageId },
+        caption: '文字起こしが完了しました！📝',
+      });
+    } else {
+      // Fallback to error message if transcript is empty
+      await bot.api.sendMessage(chatId, 'Sorry, no transcript was generated. Please try again.', {
+        reply_parameters: { message_id: messageId },
+      });
+    }
   } catch (error) {
     errorMsg = error.message;
     console.log(errorMsg);
