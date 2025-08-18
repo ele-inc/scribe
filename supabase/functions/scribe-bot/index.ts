@@ -274,8 +274,16 @@ async function scribe({
           }
         })
         .join("\n");
+    } else if (!options.diarize && Array.isArray(words) && words.length > 0 && options.showTimestamp) {
+      // No diarization but with timestamps - use sentence-based splitting
+      const sentences = extractSentences(words);
+      transcript = sentences
+        .map((s) => {
+          return `[${formatTimestamp(s.start)}] ${s.text}`;
+        })
+        .join("\n");
     } else {
-      // ===== No diarization: plain text with basic sentence breaks, no timestamps =====
+      // Plain text without timestamps
       const plain = (scribeResult.text || "").trim();
       // Insert newline after punctuation commonly used as sentence boundaries.
       transcript = plain.replace(/([。.!！?？])\s*/g, "$1\n").trim();
