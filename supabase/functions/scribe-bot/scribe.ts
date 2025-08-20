@@ -15,7 +15,7 @@ import {
 import {
   sendSlackMessage,
   uploadTranscriptToSlack,
-  downloadSlackFile,
+  downloadSlackFileToPath,
 } from "./slack.ts";
 
 const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY");
@@ -63,22 +63,35 @@ export async function transcribeAudioFile({
   console.log("fileType (MIME):", fileType);
   
   try {
-    const sourceFileArrayBuffer = await downloadSlackFile(fileURL);
-
     const tempDir = await Deno.makeTempDir();
     const fileExtension = getFileExtensionFromMime(fileType);
     tempFilePath = `${tempDir}/audio_${Date.now()}.${fileExtension}`;
 
-    console.log("saving to temp file:", tempFilePath);
-    await Deno.writeFile(tempFilePath, new Uint8Array(sourceFileArrayBuffer));
+    console.log("downloading file to temp path:", tempFilePath);
+    await downloadSlackFileToPath(fileURL, tempFilePath);
+
+    const fileInfo = await Deno.stat(tempFilePath);
+    const fileSizeMB = fileInfo.size / (1024 * 1024);
+    console.log(`File size: ${fileSizeMB.toFixed(2)}MB`);
+    
+    if (fileSizeMB > 100) {
+      console.warn(`Large file detected: ${fileSizeMB.toFixed(2)}MB - may approach memory limits`);
+      await sendSlackMessage(
+        channelId,
+        `⚠️ Large file detected (${fileSizeMB.toFixed(2)}MB). Processing may take longer...`,
+        timestamp,
+      );
+    }
 
     console.log("calling elevenlabs with options:", options);
 
-    const fileHandle = await Deno.open(tempFilePath, { read: true });
-    const fileBlob = new Blob([await Deno.readFile(tempFilePath)], {
+    const file = await Deno.open(tempFilePath, { read: true });
+    const fileData = await Deno.readFile(tempFilePath);
+    file.close();
+    
+    const fileBlob = new Blob([fileData], {
       type: fileType,
     });
-    fileHandle.close();
 
     console.log("Sending to ElevenLabs API...");
     const scribeResult = await elevenlabs.speechToText.convert({
@@ -87,7 +100,7 @@ export async function transcribeAudioFile({
       tag_audio_events: options.tagAudioEvents,
       diarize: options.diarize,
       language_code: "ja",
-    }, { timeoutInSeconds: 120 });
+    }, { timeoutInSeconds: 180 });
 
     console.log("ElevenLabs API response received");
     console.log("Scribe result:", JSON.stringify(scribeResult, null, 2));
@@ -145,11 +158,21 @@ export async function transcribeAudioFile({
     }
   } catch (error) {
     errorMsg = error instanceof Error ? error.message : String(error);
-    await sendSlackMessage(
-      channelId,
-      "Sorry, there was an error. Please try again.",
-      timestamp,
-    );
+    
+    if (errorMsg.includes('memory') || errorMsg.includes('allocation')) {
+      console.error('Memory limit exceeded for file processing');
+      await sendSlackMessage(
+        channelId,
+        "File too large for processing. Please try a smaller file (under 100MB recommended).",
+        timestamp,
+      );
+    } else {
+      await sendSlackMessage(
+        channelId,
+        "Sorry, there was an error. Please try again.",
+        timestamp,
+      );
+    }
   } finally {
     if (tempFilePath) {
       try {

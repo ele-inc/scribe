@@ -143,3 +143,61 @@ export async function downloadSlackFile(fileURL: string): Promise<ArrayBuffer> {
   
   return sourceFileArrayBuffer;
 }
+
+export async function downloadSlackFileToPath(fileURL: string, filePath: string): Promise<void> {
+  console.log("streaming file to:", filePath);
+  const response = await fetch(fileURL, {
+    headers: {
+      "Authorization": `Bearer ${SLACK_BOT_TOKEN}`,
+    },
+  });
+
+  console.log("Response status:", response.status);
+  console.log("Response content-type:", response.headers.get("content-type"));
+
+  if (!response.ok) {
+    throw new Error(`Failed to download file: ${response.statusText}`);
+  }
+
+  if (response.headers.get("content-type")?.includes("text/html")) {
+    const htmlContent = await response.text();
+    console.log(
+      "HTML Response (first 500 chars):",
+      htmlContent.substring(0, 500),
+    );
+    throw new Error(
+      "Received HTML instead of audio file - likely authentication error",
+    );
+  }
+
+  const contentLength = response.headers.get("content-length");
+  if (contentLength) {
+    console.log("File size:", contentLength, "bytes");
+  }
+
+  if (!response.body) {
+    throw new Error("Response body is null");
+  }
+
+  const file = await Deno.open(filePath, { write: true, create: true });
+  try {
+    const reader = response.body.getReader();
+    let totalBytes = 0;
+    
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      
+      await file.write(value);
+      totalBytes += value.byteLength;
+      
+      if (totalBytes % (10 * 1024 * 1024) === 0) {
+        console.log(`Downloaded ${totalBytes / (1024 * 1024)}MB...`);
+      }
+    }
+    
+    console.log(`Download complete: ${totalBytes} bytes`);
+  } finally {
+    file.close();
+  }
+}
