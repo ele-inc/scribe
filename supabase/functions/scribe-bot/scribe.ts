@@ -17,6 +17,10 @@ import {
   uploadTranscriptToSlack,
   downloadSlackFileToPath,
 } from "./slack.ts";
+import {
+  sendDiscordMessage,
+  uploadTranscriptToDiscord,
+} from "./discord.ts";
 
 const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -46,6 +50,7 @@ export async function transcribeAudioFile({
   filename,
   isGoogleDrive,
   tempPath,
+  platform = "slack",
 }: {
   fileURL: string;
   fileType: string;
@@ -57,6 +62,7 @@ export async function transcribeAudioFile({
   filename?: string;
   isGoogleDrive?: boolean;
   tempPath?: string;
+  platform?: "slack" | "discord";
 }) {
   let transcript: string | null = null;
   let languageCode: string | null = null;
@@ -85,15 +91,6 @@ export async function transcribeAudioFile({
     const fileInfo = await Deno.stat(tempFilePath);
     const fileSizeMB = fileInfo.size / (1024 * 1024);
     console.log(`File size: ${fileSizeMB.toFixed(2)}MB`);
-    
-    if (fileSizeMB > 100) {
-      console.warn(`Large file detected: ${fileSizeMB.toFixed(2)}MB - may approach memory limits`);
-      await sendSlackMessage(
-        channelId,
-        `⚠️ Large file detected (${fileSizeMB.toFixed(2)}MB). Processing may take longer...`,
-        timestamp,
-      );
-    }
 
     console.log("calling elevenlabs with options:", options);
 
@@ -160,30 +157,40 @@ export async function transcribeAudioFile({
       const finalTranscript = filename 
         ? createTranscriptionHeader(filename) + transcript
         : transcript;
-      await uploadTranscriptToSlack(finalTranscript, channelId, timestamp);
+      
+      if (platform === "slack") {
+        await uploadTranscriptToSlack(finalTranscript, channelId, timestamp);
+      } else if (platform === "discord") {
+        await uploadTranscriptToDiscord(finalTranscript, channelId, filename);
+      }
     } else {
       console.log("No transcript generated, sending error message");
-      await sendSlackMessage(
-        channelId,
-        "Sorry, no transcript was generated. Please try again.",
-        timestamp,
-      );
+      if (platform === "slack") {
+        await sendSlackMessage(
+          channelId,
+          "Sorry, no transcript was generated. Please try again.",
+          timestamp,
+        );
+      } else if (platform === "discord") {
+        await sendDiscordMessage(
+          channelId,
+          "❌ 文字起こしの生成に失敗しました。もう一度お試しください。"
+        );
+      }
     }
   } catch (error) {
     errorMsg = error instanceof Error ? error.message : String(error);
     
-    if (errorMsg.includes('memory') || errorMsg.includes('allocation')) {
-      console.error('Memory limit exceeded for file processing');
-      await sendSlackMessage(
-        channelId,
-        "File too large for processing. Please try a smaller file (under 100MB recommended).",
-        timestamp,
-      );
-    } else {
+    if (platform === "slack") {
       await sendSlackMessage(
         channelId,
         "Sorry, there was an error. Please try again.",
         timestamp,
+      );
+    } else if (platform === "discord") {
+      await sendDiscordMessage(
+        channelId,
+        "❌ エラーが発生しました。もう一度お試しください。"
       );
     }
   } finally {
