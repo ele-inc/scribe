@@ -4,6 +4,7 @@ import { parseTranscriptionOptions, extractGoogleDriveUrls } from "./utils.ts";
 import { sendSlackMessage } from "./slack.ts";
 import { transcribeAudioFile } from "./scribe.ts";
 import { downloadGoogleDriveFile } from "./googledrive.ts";
+import { handleDiscordInteraction } from "./discord-handler.ts";
 
 console.log(`Function "elevenlabs-scribe-bot" up and running!`);
 
@@ -224,6 +225,40 @@ async function handleAppMention(event: SlackEvent) {
 
 Deno.serve(async (req) => {
   try {
+    // Log incoming request for debugging
+    console.log("Incoming request method:", req.method);
+    console.log("Incoming request URL:", req.url);
+    
+    // Check if this is a Discord request (checking both cases for header)
+    const isDiscordRequest = 
+      req.headers.get("x-signature-ed25519") !== null || 
+      req.headers.get("X-Signature-Ed25519") !== null ||
+      req.headers.get("x-signature-timestamp") !== null;
+    
+    if (isDiscordRequest) {
+      console.log("Discord request detected");
+      // Handle Discord interactions
+      return await handleDiscordInteraction(req);
+    }
+    
+    // Also handle Discord PING without headers (for initial verification)
+    if (req.method === "POST") {
+      try {
+        const bodyText = await req.clone().text();
+        const body = JSON.parse(bodyText);
+        if (body.type === 0) { // InteractionType.Ping
+          console.log("Discord PING detected (no headers)");
+          return new Response(
+            JSON.stringify({ type: 1 }),
+            { headers: { "Content-Type": "application/json" } }
+          );
+        }
+      } catch {
+        // Not a Discord PING, continue to Slack handling
+      }
+    }
+    
+    // Handle Slack requests
     if (req.method === "POST") {
       const bodyText = await req.text();
       const body = JSON.parse(bodyText);
