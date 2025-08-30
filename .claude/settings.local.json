@@ -9,7 +9,9 @@
       "Bash(git checkout:*)",
       "Bash(git pull:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(chmod:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []
