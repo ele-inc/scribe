@@ -35,7 +35,7 @@ function initializeGoogleDriveClient() {
   const privateKey = Deno.env.get("GOOGLE_PRIVATE_KEY");
   const clientEmail = Deno.env.get("GOOGLE_CLIENT_EMAIL")
   const impersonateEmail = Deno.env.get("GOOGLE_IMPERSONATE_EMAIL"); // Optional: email to impersonate
-  
+
   if (!privateKey) {
     throw new Error("GOOGLE_PRIVATE_KEY environment variable is not set");
   }
@@ -72,7 +72,7 @@ export async function getGoogleDriveFileMetadata(fileId: string): Promise<Google
       errors: error.errors,
       fileId: fileId,
     });
-    
+
     if (error.code === 404) {
       throw new Error(`File not found (ID: ${fileId}). Check if the URL is correct and the file exists.`);
     }
@@ -93,7 +93,7 @@ export async function downloadGoogleDriveFileToPath(
   try {
     // Get file metadata first to check if it's a Google Docs file
     const metadata = await getGoogleDriveFileMetadata(fileId);
-    
+
     // Check if it's a Google Docs/Sheets/Slides file that needs export
     const exportMimeTypes: Record<string, string> = {
       "application/vnd.google-apps.document": "application/pdf",
@@ -103,7 +103,7 @@ export async function downloadGoogleDriveFileToPath(
     };
 
     let response;
-    
+
     if (exportMimeTypes[metadata.mimeType]) {
       // Export Google Docs files
       response = await drive.files.export(
@@ -111,7 +111,7 @@ export async function downloadGoogleDriveFileToPath(
           fileId,
           mimeType: exportMimeTypes[metadata.mimeType],
         },
-        { responseType: "stream" }
+        { responseType: "arraybuffer" }
       );
     } else {
       // Download regular files
@@ -121,37 +121,16 @@ export async function downloadGoogleDriveFileToPath(
           alt: "media",
           supportsAllDrives: true,
         },
-        { responseType: "stream" }
+        { responseType: "arraybuffer" }
       );
     }
 
-    // Write stream to file directly without buffering in memory
-    const file = await Deno.open(tempPath, {
-      create: true,
-      write: true,
-      truncate: true,
-    });
+    // Write entire buffer to file at once for maximum speed
+    const buffer = new Uint8Array(response.data as ArrayBuffer);
+    await Deno.writeFile(tempPath, buffer);
 
-    try {
-      // Write chunks directly to file as they arrive
-      let totalBytes = 0;
-      
-      // response.data is a Node.js Readable stream
-      for await (const chunk of response.data as any) {
-        const uint8Chunk = new Uint8Array(chunk);
-        await file.write(uint8Chunk);
-        totalBytes += uint8Chunk.length;
-        
-        // Log progress for large files
-        if (totalBytes % (10 * 1024 * 1024) === 0) {
-          console.log(`Downloaded ${(totalBytes / (1024 * 1024)).toFixed(1)}MB...`);
-        }
-      }
-      
-      console.log(`Download complete: ${(totalBytes / (1024 * 1024)).toFixed(2)}MB`);
-    } finally {
-      file.close();
-    }
+    const fileSizeMB = buffer.length / (1024 * 1024);
+    console.log(`Download complete: ${fileSizeMB.toFixed(2)}MB`);
   } catch (error: any) {
     if (error.code === 403) {
       throw new Error("Access denied. The file might be private or restricted.");
@@ -174,14 +153,14 @@ export async function downloadGoogleDriveFile(
   tempPath: string,
 ): Promise<{ filename: string; mimeType: string }> {
   const fileId = parseGoogleDriveUrl(url);
-  
+
   if (!fileId) {
     throw new Error("Invalid Google Drive URL");
   }
 
   // Get file metadata
   const metadata = await getGoogleDriveFileMetadata(fileId);
-  
+
   // Download file
   await downloadGoogleDriveFileToPath(fileId, tempPath);
 

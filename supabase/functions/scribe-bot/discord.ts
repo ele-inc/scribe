@@ -194,16 +194,21 @@ export async function editInteractionReply(
   }
 }
 
-// Download file from Discord CDN
+// Download file from Discord CDN - optimized for speed
 export async function downloadDiscordFile(url: string): Promise<Uint8Array> {
+  console.log("Downloading Discord file from:", url);
   const response = await fetch(url);
   
   if (!response.ok) {
     throw new Error(`Failed to download Discord file: ${response.status}`);
   }
 
+  // Download entire file at once for maximum speed
   const arrayBuffer = await response.arrayBuffer();
-  return new Uint8Array(arrayBuffer);
+  const buffer = new Uint8Array(arrayBuffer);
+  
+  console.log(`Download complete: ${(buffer.length / (1024 * 1024)).toFixed(2)}MB`);
+  return buffer;
 }
 
 // Get file info from Discord attachment URL
