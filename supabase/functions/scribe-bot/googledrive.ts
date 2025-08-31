@@ -92,11 +92,11 @@ export async function downloadGoogleDriveFileToPath(
 
   try {
     const startTime = performance.now();
-    
+
     // Get file metadata first
     const metadata = await getGoogleDriveFileMetadata(fileId);
     const fileSizeMB = metadata.size ? parseInt(metadata.size) / (1024 * 1024) : 0;
-    
+
     console.log(`Starting download: ${metadata.name} (${fileSizeMB.toFixed(2)}MB)`);
 
     // Check if it's a Google Docs/Sheets/Slides file
@@ -119,30 +119,29 @@ export async function downloadGoogleDriveFileToPath(
         alt: "media",
         supportsAllDrives: true,
       },
-      { 
+      {
         responseType: "stream",
-        // Increase timeout for large files
-        timeout: 300000, // 5 minutes
+        timeout: 3600000, // 1 hour
       }
     );
 
     // Stream download with chunked writing
     const file = await Deno.open(tempPath, { write: true, create: true, truncate: true });
     const writer = file.writable.getWriter();
-    
+
     let downloadedBytes = 0;
     let lastProgressTime = performance.now();
-    
+
     try {
       // Node.js Readable stream from googleapis
       const stream = response.data as any; // Node.js Readable stream
-      
+
       // Convert Node.js Readable stream to chunks
       for await (const chunk of stream) {
         const buffer = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
         await writer.write(buffer);
         downloadedBytes += buffer.length;
-        
+
         // Log progress every second
         const currentTime = performance.now();
         if (currentTime - lastProgressTime > 1000) {
@@ -155,11 +154,11 @@ export async function downloadGoogleDriveFileToPath(
     } finally {
       await writer.close();
     }
-    
+
     const downloadTime = (performance.now() - startTime) / 1000;
     const actualSizeMB = downloadedBytes / (1024 * 1024);
     console.log(`Download complete: ${actualSizeMB.toFixed(2)}MB in ${downloadTime.toFixed(2)}s (${(actualSizeMB / downloadTime).toFixed(2)}MB/s)`);
-  
+
   } catch (error: any) {
     if (error.code === 403) {
       throw new Error("Access denied. The file might be private or restricted.");
