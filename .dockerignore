@@ -18,4 +18,4 @@ dist
 *.sh
 register-discord-commands.ts
 # Exclude deno.lock to avoid version conflicts
-supabase/functions/scribe-bot/deno.lock
+src/deno.lock
