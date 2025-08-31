@@ -61,7 +61,7 @@ export async function getGoogleDriveFileMetadata(fileId: string): Promise<Google
     });
 
     return response.data as GoogleDriveFile;
-  } catch (error: any) {
+  } catch (error) {
     console.error("Google Drive API error details:", {
       code: error.code,
       message: error.message,
@@ -130,7 +130,7 @@ export async function downloadGoogleDriveFileToPath(
 
     try {
       // Node.js Readable stream from googleapis
-      const stream = response.data as any; // Node.js Readable stream
+      const stream = response.data; // Node.js Readable stream
 
       // Convert Node.js Readable stream to chunks
       for await (const chunk of stream) {
@@ -155,7 +155,7 @@ export async function downloadGoogleDriveFileToPath(
     const actualSizeMB = downloadedBytes / (1024 * 1024);
     console.log(`Download complete: ${actualSizeMB.toFixed(2)}MB in ${downloadTime.toFixed(2)}s (${(actualSizeMB / downloadTime).toFixed(2)}MB/s)`);
 
-  } catch (error: any) {
+  } catch (error) {
     if (error.code === 403) {
       throw new Error("Access denied. The file might be private or restricted.");
     }

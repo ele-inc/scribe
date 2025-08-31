@@ -23,7 +23,7 @@ import {
   uploadTranscriptToDiscord,
 } from "./discord.ts";
 import { config } from "./config.ts";
-import { logError } from "./errors.ts";
+// import { logError } from "./errors.ts"; // Not used with error propagation
 
 const elevenlabs = new ElevenLabsClient({
   apiKey: config.elevenLabsApiKey,
@@ -57,7 +57,7 @@ export async function transcribeAudioFile({
 }) {
   let transcript: string | null = null;
   let languageCode: string | null = null;
-  let errorMsg: string | null = null;
+  const errorMsg: string | null = null;
   let tempFilePath: string | null = null;
   let audioFilePath: string | null = null;
   let originalVideoPath: string | null = null;
@@ -198,59 +198,35 @@ export async function transcribeAudioFile({
   } finally {
     // Clean up audio file if it was created from video conversion
     if (audioFilePath) {
-      try {
-        console.log("cleaning up converted audio file:", audioFilePath);
-        await Deno.remove(audioFilePath);
-        const audioDir = audioFilePath.substring(
-          0,
-          audioFilePath.lastIndexOf("/"),
-        );
-        try {
-          await Deno.remove(audioDir);
-        } catch {
-          // Ignore error if directory is not empty or doesn't exist
-        }
-      } catch (cleanupError) {
-        // Ignore cleanup errors
-      }
+      console.log("cleaning up converted audio file:", audioFilePath);
+      await Deno.remove(audioFilePath).catch(() => {});
+      const audioDir = audioFilePath.substring(
+        0,
+        audioFilePath.lastIndexOf("/"),
+      );
+      await Deno.remove(audioDir).catch(() => {});
     }
     
     // Clean up original temp file if no audio conversion was done
     if (tempFilePath && !audioFilePath) {
       if (!isGoogleDrive) {
         // Clean up Slack-downloaded files
-        try {
-          console.log("cleaning up temp file:", tempFilePath);
-          await Deno.remove(tempFilePath);
-          const tempDir = tempFilePath.substring(
-            0,
-            tempFilePath.lastIndexOf("/"),
-          );
-          try {
-            await Deno.remove(tempDir);
-          } catch {
-            // Ignore error if directory is not empty or doesn't exist
-          }
-        } catch (cleanupError) {
-          // Ignore cleanup errors
-        }
+        console.log("cleaning up temp file:", tempFilePath);
+        await Deno.remove(tempFilePath).catch(() => {});
+        const tempDir = tempFilePath.substring(
+          0,
+          tempFilePath.lastIndexOf("/"),
+        );
+        await Deno.remove(tempDir).catch(() => {});
       } else {
         // Clean up Google Drive downloaded files
-        try {
-          console.log("cleaning up Google Drive temp file:", tempFilePath);
-          await Deno.remove(tempFilePath);
-          const tempDir = tempFilePath.substring(
-            0,
-            tempFilePath.lastIndexOf("/"),
-          );
-          try {
-            await Deno.remove(tempDir);
-          } catch {
-            // Ignore error if directory is not empty or doesn't exist
-          }
-        } catch (cleanupError) {
-          // Ignore cleanup errors
-        }
+        console.log("cleaning up Google Drive temp file:", tempFilePath);
+        await Deno.remove(tempFilePath).catch(() => {});
+        const tempDir = tempFilePath.substring(
+          0,
+          tempFilePath.lastIndexOf("/"),
+        );
+        await Deno.remove(tempDir).catch(() => {});
       }
     }
   }

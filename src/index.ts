@@ -2,7 +2,7 @@
 import { handleDiscordInteraction } from "./discord-handler.ts";
 import { handleSlackEvents } from "./slack-handler.ts";
 import { config } from "./config.ts";
-import { handleHttpError } from "./errors.ts";
+// import { handleHttpError } from "./errors.ts"; // Not needed with error propagation
 import { textResponse, methodNotAllowed } from "./http-utils.ts";
 
 console.log(`Function "elevenlabs-scribe-bot" up and running!`);

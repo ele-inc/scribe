@@ -183,9 +183,7 @@ export const convertVideoToAudio = async (
     return outputPath;
   } catch (error) {
     // Clean up temp directory on error
-    try {
-      await Deno.remove(outputDir, { recursive: true });
-    } catch {}
+    await Deno.remove(outputDir, { recursive: true }).catch(() => {});
     throw new Error(`Failed to convert video to audio: ${error}`);
   }
 };

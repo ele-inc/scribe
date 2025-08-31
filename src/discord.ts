@@ -70,7 +70,7 @@ export async function sendDiscordMessage(
 
   const formData = new FormData();
 
-  const payload: any = {};
+  const payload: Record<string, unknown> = {};
   if (content) payload.content = content;
   if (embeds) payload.embeds = embeds;
 
@@ -126,7 +126,7 @@ export async function uploadTranscriptToDiscord(
 }
 
 // Reply to Discord interaction
-export async function replyToInteraction(
+export function replyToInteraction(
   content: string,
   ephemeral: boolean = false,
 ): Promise<Response> {
@@ -214,7 +214,7 @@ export function getDiscordFileInfo(url: string): { name: string; extension: stri
 // Format Discord message with options
 export function formatDiscordMessage(
   transcript: string,
-  options: {
+  _options: {
     showTimestamp?: boolean;
     diarize?: boolean;
   }

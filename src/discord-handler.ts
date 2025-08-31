@@ -3,7 +3,11 @@ import {
   InteractionType,
   APIChatInputApplicationCommandInteraction,
   APIMessageApplicationCommandInteraction,
+  APIApplicationCommandInteractionDataStringOption,
+  APIApplicationCommandInteractionDataAttachmentOption,
+  APIAttachment,
 } from "npm:discord-api-types@0.37.100/v10";
+import { TranscriptionOptions } from "./types.ts";
 
 // EdgeRuntime removed for Cloud Run compatibility
 import {
@@ -94,9 +98,10 @@ async function handleTranscribeCommand(
 ): Promise<Response> {
   // Get command options
   const options = interaction.data.options || [];
-  const urlOption = options.find(opt => opt.name === "url");
-  const fileOption = options.find(opt => opt.name === "file");
-  const optionsText = options.find(opt => opt.name === "options")?.value as string || "";
+  const urlOption = options.find(opt => opt.name === "url" && 'value' in opt) as APIApplicationCommandInteractionDataStringOption | undefined;
+  const fileOption = options.find(opt => opt.name === "file" && 'value' in opt) as APIApplicationCommandInteractionDataAttachmentOption | undefined;
+  const optionsOption = options.find(opt => opt.name === "options" && 'value' in opt) as APIApplicationCommandInteractionDataStringOption | undefined;
+  const optionsText = optionsOption?.value || "";
 
   // Parse transcription options
   const transcriptionOptions = parseTranscriptionOptions(optionsText);
@@ -161,7 +166,8 @@ function handleMessageCommand(
   // Process each file/URL in background
   if (googleDriveUrls.length > 0) {
     for (const url of googleDriveUrls) {
-      globalThis.EdgeRuntime.waitUntil(
+      // deno-lint-ignore no-explicit-any
+      (globalThis as any).EdgeRuntime.waitUntil(
         processGoogleDriveTranscription(interaction, url, {})
       );
     }
@@ -182,8 +188,8 @@ async function processDiscordTranscription(
   interaction: APIInteraction,
   params: {
     url?: string;
-    fileAttachment?: any;
-    options: any;
+    fileAttachment?: APIAttachment | null;
+    options: TranscriptionOptions;
   }
 ) {
   try {
@@ -219,7 +225,7 @@ async function processDiscordTranscription(
 async function processGoogleDriveTranscription(
   interaction: APIInteraction,
   url: string,
-  options: any
+  options: TranscriptionOptions
 ) {
   const channelId = interaction.channel?.id || interaction.channel_id || "";
 
@@ -238,10 +244,8 @@ async function processGoogleDriveTranscription(
         `❌ ファイル "${filename}" は音声または動画ファイルではありません。`
       );
       // Clean up
-      try {
-        await Deno.remove(tempPath);
-        await Deno.remove(tempDir);
-      } catch {}
+      await Deno.remove(tempPath).catch(() => {});
+      await Deno.remove(tempDir).catch(() => {});
       return;
     }
 
@@ -285,8 +289,8 @@ async function processGoogleDriveTranscription(
 // Process Discord attachment
 async function processDiscordAttachment(
   interaction: APIInteraction,
-  attachment: any,
-  options: any
+  attachment: APIAttachment,
+  options: TranscriptionOptions
 ) {
   const channelId = interaction.channel?.id || interaction.channel_id || "";
 
@@ -325,10 +329,8 @@ async function processDiscordAttachment(
     });
 
     // Clean up
-    try {
-      await Deno.remove(tempPath);
-      await Deno.remove(tempDir);
-    } catch {}
+    await Deno.remove(tempPath).catch(() => {});
+    await Deno.remove(tempDir).catch(() => {});
 
     // Final success message
     await editInteractionReply(

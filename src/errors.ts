@@ -7,7 +7,7 @@ export class AppError extends Error {
     public message: string,
     public code: string,
     public statusCode: number = 500,
-    public details?: any
+    public details?: unknown
   ) {
     super(message);
     this.name = 'AppError';
@@ -15,35 +15,35 @@ export class AppError extends Error {
 }
 
 export class ValidationError extends AppError {
-  constructor(message: string, details?: any) {
+  constructor(message: string, details?: unknown) {
     super(message, 'VALIDATION_ERROR', 400, details);
     this.name = 'ValidationError';
   }
 }
 
 export class AuthenticationError extends AppError {
-  constructor(message: string, details?: any) {
+  constructor(message: string, details?: unknown) {
     super(message, 'AUTHENTICATION_ERROR', 401, details);
     this.name = 'AuthenticationError';
   }
 }
 
 export class NotFoundError extends AppError {
-  constructor(message: string, details?: any) {
+  constructor(message: string, details?: unknown) {
     super(message, 'NOT_FOUND', 404, details);
     this.name = 'NotFoundError';
   }
 }
 
 export class ExternalServiceError extends AppError {
-  constructor(service: string, message: string, details?: any) {
+  constructor(service: string, message: string, details?: unknown) {
     super(`${service} error: ${message}`, 'EXTERNAL_SERVICE_ERROR', 503, details);
     this.name = 'ExternalServiceError';
   }
 }
 
 export class TranscriptionError extends AppError {
-  constructor(message: string, details?: any) {
+  constructor(message: string, details?: unknown) {
     super(message, 'TRANSCRIPTION_ERROR', 500, details);
     this.name = 'TranscriptionError';
   }
@@ -52,7 +52,7 @@ export class TranscriptionError extends AppError {
 /**
  * Centralized error logger
  */
-export function logError(error: Error, context?: Record<string, any>): void {
+export function logError(error: Error, context?: Record<string, unknown>): void {
   const errorInfo = {
     name: error.name,
     message: error.message,
@@ -72,7 +72,7 @@ export function logError(error: Error, context?: Record<string, any>): void {
 /**
  * Wrap async functions with error handling
  */
-export function withErrorHandling<T extends (...args: any[]) => Promise<any>>(
+export function withErrorHandling<T extends (...args: unknown[]) => Promise<unknown>>(
   fn: T,
   context?: string
 ): T {

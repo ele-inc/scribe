@@ -6,7 +6,7 @@
  * Create a JSON response
  */
 export function jsonResponse(
-  data: any,
+  data: unknown,
   status: number = 200,
   headers?: HeadersInit
 ): Response {
@@ -90,7 +90,7 @@ export function serviceUnavailable(
 /**
  * Parse request body safely
  */
-export async function parseJsonBody<T = any>(req: Request): Promise<T | null> {
+export async function parseJsonBody<T = unknown>(req: Request): Promise<T | null> {
   try {
     const contentType = req.headers.get('content-type');
     if (!contentType?.includes('application/json')) {
