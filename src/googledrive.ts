@@ -62,20 +62,21 @@ export async function getGoogleDriveFileMetadata(fileId: string): Promise<Google
 
     return response.data as GoogleDriveFile;
   } catch (error) {
+    const err = error as { code?: number; message?: string; errors?: unknown };
     console.error("Google Drive API error details:", {
-      code: error.code,
-      message: error.message,
-      errors: error.errors,
+      code: err.code,
+      message: err.message,
+      errors: err.errors,
       fileId: fileId,
     });
 
-    if (error.code === 404) {
+    if (err.code === 404) {
       throw new Error(`File not found (ID: ${fileId}). Check if the URL is correct and the file exists.`);
     }
-    if (error.code === 403) {
+    if (err.code === 403) {
       throw new Error(`Permission denied. The Google Drive API might not be enabled for this project.`);
     }
-    throw new Error(`Failed to get file metadata: ${error.message}`);
+    throw new Error(`Failed to get file metadata: ${err.message}`);
   }
 }
 
@@ -156,13 +157,14 @@ export async function downloadGoogleDriveFileToPath(
     console.log(`Download complete: ${actualSizeMB.toFixed(2)}MB in ${downloadTime.toFixed(2)}s (${(actualSizeMB / downloadTime).toFixed(2)}MB/s)`);
 
   } catch (error) {
-    if (error.code === 403) {
+    const err = error as { code?: number; message?: string };
+    if (err.code === 403) {
       throw new Error("Access denied. The file might be private or restricted.");
     }
-    if (error.code === 404) {
+    if (err.code === 404) {
       throw new Error("File not found or you don't have permission to access it.");
     }
-    throw new Error(`Failed to download file: ${error.message}`);
+    throw new Error(`Failed to download file: ${err.message}`);
   }
 }
 

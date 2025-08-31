@@ -93,9 +93,9 @@ export async function handleDiscordInteraction(request: Request): Promise<Respon
 }
 
 // Handle /transcribe slash command
-async function handleTranscribeCommand(
+function handleTranscribeCommand(
   interaction: APIChatInputApplicationCommandInteraction
-): Promise<Response> {
+): Response {
   // Get command options
   const options = interaction.data.options || [];
   const urlOption = options.find(opt => opt.name === "url" && 'value' in opt) as APIApplicationCommandInteractionDataStringOption | undefined;
@@ -122,7 +122,7 @@ async function handleTranscribeCommand(
   }
 
   // Defer the reply immediately (Discord requires response within 3 seconds)
-  const deferResponse = await deferInteractionReply();
+  const deferResponse = deferInteractionReply();
 
   // Process in background
   processDiscordTranscription(interaction, {
@@ -137,7 +137,7 @@ async function handleTranscribeCommand(
 // Handle message context menu command
 function handleMessageCommand(
   interaction: APIMessageApplicationCommandInteraction
-): Promise<Response> {
+): Response {
   const message = interaction.data.resolved.messages[interaction.data.target_id];
 
   if (!message) {
@@ -168,7 +168,11 @@ function handleMessageCommand(
     for (const url of googleDriveUrls) {
       // deno-lint-ignore no-explicit-any
       (globalThis as any).EdgeRuntime.waitUntil(
-        processGoogleDriveTranscription(interaction, url, {})
+        processGoogleDriveTranscription(interaction, url, {
+          diarize: true,
+          showTimestamp: true,
+          tagAudioEvents: true
+        })
       );
     }
   }
@@ -176,7 +180,11 @@ function handleMessageCommand(
   if (audioVideoAttachments && audioVideoAttachments.length > 0) {
     for (const attachment of audioVideoAttachments) {
       // Process attachment asynchronously
-      processDiscordAttachment(interaction, attachment, {}).catch(console.error);
+      processDiscordAttachment(interaction, attachment, {
+        diarize: true,
+        showTimestamp: true,
+        tagAudioEvents: true
+      }).catch(console.error);
     }
   }
 

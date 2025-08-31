@@ -129,7 +129,7 @@ export async function uploadTranscriptToDiscord(
 export function replyToInteraction(
   content: string,
   ephemeral: boolean = false,
-): Promise<Response> {
+): Response {
   return new Response(
     JSON.stringify({
       type: InteractionResponseType.ChannelMessageWithSource,

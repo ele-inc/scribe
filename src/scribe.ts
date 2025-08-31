@@ -23,7 +23,6 @@ import {
   uploadTranscriptToDiscord,
 } from "./discord.ts";
 import { config } from "./config.ts";
-// import { logError } from "./errors.ts"; // Not used with error propagation
 
 const elevenlabs = new ElevenLabsClient({
   apiKey: config.elevenLabsApiKey,
@@ -87,7 +86,7 @@ export async function transcribeAudioFile({
       originalVideoPath = tempFilePath;
       audioFilePath = await convertVideoToAudio(tempFilePath);
       tempFilePath = audioFilePath;
-      
+
       // Delete the original video file after conversion
       console.log("Deleting original video file:", originalVideoPath);
       await Deno.remove(originalVideoPath);
@@ -206,7 +205,7 @@ export async function transcribeAudioFile({
       );
       await Deno.remove(audioDir).catch(() => {});
     }
-    
+
     // Clean up original temp file if no audio conversion was done
     if (tempFilePath && !audioFilePath) {
       if (!isGoogleDrive) {
