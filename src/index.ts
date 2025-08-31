@@ -6,6 +6,7 @@ import { transcribeAudioFile } from "./scribe.ts";
 import { downloadGoogleDriveFile } from "./googledrive.ts";
 import { handleDiscordInteraction } from "./discord-handler.ts";
 import { config } from "./config.ts";
+import { logError, handleHttpError } from "./errors.ts";
 
 console.log(`Function "elevenlabs-scribe-bot" up and running!`);
 
@@ -131,7 +132,7 @@ async function handleAppMention(event: SlackEvent) {
             tempPath, // Pass temp path for cleanup
           }).catch(console.error);
       } catch (error) {
-        console.error("Google Drive processing error:", error);
+        logError(error as Error, { context: 'Google Drive processing', driveUrl });
         await sendSlackMessage(
           event.channel,
           `Google Driveファイルの処理中にエラーが発生しました: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -212,7 +213,7 @@ async function handleAppMention(event: SlackEvent) {
         }).catch(console.error);
     }
   } catch (error) {
-    console.error(error);
+    logError(error as Error, { context: 'handleAppMention', eventId: `${event.channel}_${event.ts}_${event.user}` });
     return await sendSlackMessage(
       event.channel,
       "Sorry, there was an error processing your files. Please try again!",
@@ -273,7 +274,6 @@ Deno.serve({ port }, async (req) => {
 
     return new Response("Method not allowed", { status: 405 });
   } catch (err) {
-    console.error(err);
-    return new Response("Internal Server Error", { status: 500 });
+    return handleHttpError(err as Error);
   }
 });

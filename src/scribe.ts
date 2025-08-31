@@ -23,6 +23,7 @@ import {
   uploadTranscriptToDiscord,
 } from "./discord.ts";
 import { config } from "./config.ts";
+import { logError } from "./errors.ts";
 
 const elevenlabs = new ElevenLabsClient({
   apiKey: config.elevenLabsApiKey,
@@ -92,7 +93,7 @@ export async function transcribeAudioFile({
         console.log("Deleting original video file:", originalVideoPath);
         await Deno.remove(originalVideoPath);
       } catch (deleteError) {
-        console.log("Warning: Could not delete original video file:", deleteError instanceof Error ? deleteError.message : String(deleteError));
+        logError(deleteError as Error, { context: 'delete original video', path: originalVideoPath });
       }
     }
 
@@ -199,7 +200,15 @@ export async function transcribeAudioFile({
       }
     }
   } catch (error) {
-    errorMsg = error instanceof Error ? error.message : String(error);
+    const err = error as Error;
+    logError(err, { 
+      context: 'transcribeAudioFile', 
+      filename, 
+      platform,
+      channelId 
+    });
+    
+    errorMsg = err.message;
 
     if (platform === "slack") {
       await sendSlackMessage(
@@ -229,7 +238,7 @@ export async function transcribeAudioFile({
           // Ignore error if directory is not empty or doesn't exist
         }
       } catch (cleanupError) {
-        console.log("Error cleaning up audio file:", cleanupError instanceof Error ? cleanupError.message : String(cleanupError));
+        logError(cleanupError as Error, { context: 'cleanup audio file', path: tempFilePath });
       }
     }
     
@@ -250,7 +259,7 @@ export async function transcribeAudioFile({
             // Ignore error if directory is not empty or doesn't exist
           }
         } catch (cleanupError) {
-          console.log("Error cleaning up temp file:", cleanupError instanceof Error ? cleanupError.message : String(cleanupError));
+          logError(cleanupError as Error, { context: 'cleanup temp file', path: tempPath });
         }
       } else {
         // Clean up Google Drive downloaded files
@@ -267,7 +276,7 @@ export async function transcribeAudioFile({
             // Ignore error if directory is not empty or doesn't exist
           }
         } catch (cleanupError) {
-          console.log("Error cleaning up Google Drive temp file:", cleanupError instanceof Error ? cleanupError.message : String(cleanupError));
+          logError(cleanupError as Error, { context: 'cleanup Google Drive temp', path: tempPath });
         }
       }
     }
