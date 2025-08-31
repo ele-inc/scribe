@@ -6,17 +6,17 @@ RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 # Copy dependency files
-COPY supabase/functions/scribe-bot/deno.json ./
+COPY src/deno.json ./
 
 # Don't copy lockfile to avoid version conflicts
 # It will be regenerated inside the container
 
 # Cache dependencies
-COPY supabase/functions/scribe-bot/*.ts ./
+COPY src/*.ts ./
 RUN deno cache index.ts
 
 # Copy all source files
-COPY supabase/functions/scribe-bot/ ./
+COPY src/ ./
 
 # Cloud Run uses PORT env variable (default 8080)
 EXPOSE 8080

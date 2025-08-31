@@ -33,7 +33,7 @@ Example:
 ## Project Structure
 
 ```
-supabase/functions/scribe-bot/
+src/
 ├── index.ts          # Main entry point and Slack event handler
 ├── scribe.ts         # ElevenLabs Scribe API integration
 ├── slack.ts          # Slack API utilities
@@ -76,7 +76,7 @@ supabase link --project-ref <your-project-ref>
 
 ### 3. Set up environment variables
 
-Create a `.env` file in the `supabase/functions/scribe-bot/` directory and add the following environment variables. You can also set these directly in your Supabase project's secrets.
+Create a `.env` file in the project root directory and add the following environment variables.
 
 ```
 ELEVENLABS_API_KEY="your-elevenlabs-api-key"

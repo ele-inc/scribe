@@ -24,11 +24,11 @@ docker-run: build
 
 # Cache Deno dependencies
 install:
-	cd supabase/functions/scribe-bot && deno cache index.ts
+	cd src && deno cache index.ts
 
 # Reload Deno cache
 reload-cache:
-	deno cache --reload ./supabase/functions/scribe-bot/index.ts
+	deno cache --reload ./src/index.ts
 
 # Show deployment status
 status:

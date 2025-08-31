@@ -125,7 +125,7 @@ docker run -p 8080:8080 \
 ### Run with Deno directly
 
 ```bash
-cd supabase/functions/scribe-bot
+cd src
 
 # Set environment variables
 export SLACK_BOT_TOKEN=your-token
