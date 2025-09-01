@@ -16,10 +16,10 @@ import {
   uploadTranscriptToDiscord,
 } from "./discord.ts";
 import { transcribeFile } from "./transcribe-core.ts";
-import { transcribeStream } from "./transcribe-stream.ts";
+import { transcribeViaTmpFile } from "./transcribe-stream.ts";
 
 /**
- * Transcribe audio from a stream (memory efficient)
+ * Transcribe audio from a stream (memory efficient with tmp file spooling)
  */
 export async function transcribeAudioFromStream({
   audioStream,
@@ -48,10 +48,10 @@ export async function transcribeAudioFromStream({
   console.log("fileType (MIME):", fileType);
 
   try {
-    console.log("calling transcribe-stream with options:", options);
+    console.log("calling transcribe via tmp file with options:", options);
 
-    // Use streaming transcription
-    const result = await transcribeStream(audioStream, options);
+    // Use tmp file spooling to avoid OOM
+    const result = await transcribeViaTmpFile(audioStream, options, filename);
     
     transcript = result.transcript;
     languageCode = result.languageCode;
