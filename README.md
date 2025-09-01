@@ -1,16 +1,16 @@
-# ElevenLabs Scribe Bot for Slack
+# ElevenLabs Transcribe Bot for Slack & Discord
 
-This is a Slack bot that uses the [ElevenLabs Scribe API](https://elevenlabs.io/speech-to-text) to transcribe audio and video files uploaded by users. It's built with Deno and runs on Supabase Edge Functions.
+A multi-platform bot that uses the [ElevenLabs Scribe API](https://elevenlabs.io/speech-to-text) to transcribe audio and video files. Supports both Slack and Discord platforms with unified transcription capabilities. Built with Deno and runs on Google Cloud Run.
 
 ## Features
 
-- Transcribes audio and video files when mentioned in Slack
-- **NEW:** Supports Google Drive video links for transcription
-- Supports speaker diarization to identify different speakers
-- Automatic timestamp insertion for better navigation
-- Audio event detection (music, laughter, etc.)
-- Sends transcripts back as text files in the message thread
-- Logs transcription requests and results to a Supabase table
+- **Multi-platform support:** Works with both Slack and Discord
+- Transcribes audio and video files when mentioned or via slash commands
+- **Google Drive integration:** Supports Google Drive video/audio links for transcription
+- **Speaker diarization:** Identifies different speakers in the conversation
+- **Automatic timestamps:** Adds timestamps for better navigation
+- **Audio event detection:** Detects music, laughter, and other audio events
+- **Flexible output:** Returns transcripts as text files in the conversation thread
 
 ## Transcription Options
 
@@ -34,9 +34,12 @@ Example:
 
 ```
 src/
-├── index.ts          # Main entry point and Slack event handler
+├── index.ts          # Main entry point and request router
+├── slack-handler.ts  # Slack event handler
+├── discord-handler.ts # Discord interaction handler
 ├── scribe.ts         # ElevenLabs Scribe API integration
 ├── slack.ts          # Slack API utilities
+├── discord.ts        # Discord API utilities
 ├── types.ts          # TypeScript type definitions
 └── utils.ts          # Helper functions for text processing
 ```
@@ -46,7 +49,8 @@ src/
 - [Deno](https://deno.land/) - JavaScript/TypeScript runtime
 - [Google Cloud Run](https://cloud.google.com/run) - Container hosting platform
 - [ElevenLabs Scribe API](https://elevenlabs.io/docs/api-reference/speech-to-text) - Speech-to-text transcription
-- Slack Events API - Bot event handling
+- Slack Events API - Slack bot event handling
+- Discord Interactions API - Discord bot interaction handling
 
 ## Setup
 
@@ -56,7 +60,8 @@ src/
 - [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) installed
 - An ElevenLabs account and API key.
 - A Google Cloud project with Cloud Run enabled.
-- A Slack app with bot token and signing secret.
+- A Slack app with bot token and signing secret (for Slack bot).
+- A Discord application with bot token and public key (for Discord bot).
 
 ### 1. Clone the repository
 
@@ -114,23 +119,69 @@ gcloud run deploy scribe-bot \
    - `app_mention` - To detect when the bot is mentioned with files
 7. Go to "Basic Information" and copy the Signing Secret
 
+### 5. Set up the Discord Bot
+
+1. Create a new Discord application at https://discord.com/developers/applications
+2. Go to the "Bot" section and create a bot
+3. Copy the Bot Token (you'll need this for `DISCORD_BOT_TOKEN`)
+4. Go to the "General Information" section and copy:
+   - Application ID (for `DISCORD_APPLICATION_ID`)
+   - Public Key (for `DISCORD_PUBLIC_KEY`)
+5. Go to the "Interactions Endpoint URL" section and set it to:
+   ```
+   https://YOUR-CLOUD-RUN-URL/discord/interactions
+   ```
+6. In the "Bot" section, enable the following Privileged Gateway Intents:
+   - MESSAGE CONTENT INTENT (to read message content)
+7. Generate an invite URL from the "OAuth2 > URL Generator" section with:
+   - Scopes: `bot`, `applications.commands`
+   - Bot Permissions: `Send Messages`, `Attach Files`, `Read Message History`
+8. Use the generated URL to invite the bot to your Discord server
+9. Register slash commands by running:
+   ```bash
+   npm run register-discord-commands
+   ```
+
 The Cloud Run URL can be found in the output of the `gcloud run deploy` command or in your Google Cloud Console.
 
 ## Usage
 
-### With Slack file uploads:
+### Slack
+
+#### With file uploads:
 1. Upload an audio or video file to a Slack channel
 2. Mention the bot in the same message or as a reply
 3. (Optional) Add transcription options like `--no-timestamp` or `--no-diarize`
 4. The bot will process the file and reply with a transcript text file
 
-### With Google Drive links:
+#### With Google Drive links:
 1. Share a Google Drive video/audio file link in a message
 2. Mention the bot in the same message with the link
 3. (Optional) Add transcription options
 4. The bot will download from Google Drive and transcribe
 
 Example: `@bot https://drive.google.com/file/d/xxxxx/view --num-speakers 3`
+
+### Discord
+
+#### Using slash commands:
+1. Use the `/transcribe` command in any channel
+2. Attach an audio or video file to the command
+3. (Optional) Add transcription options as command parameters
+4. The bot will reply with the transcript as a text file
+
+#### With file uploads:
+1. Upload an audio or video file to a Discord channel
+2. Reply to the message with `/transcribe` command
+3. (Optional) Add transcription options
+4. The bot will process and return the transcript
+
+#### With Google Drive links:
+1. Use `/transcribe url:<drive_link>` command
+2. (Optional) Add transcription options as parameters
+3. The bot will download and transcribe the file
+
+Example: `/transcribe url:https://drive.google.com/file/d/xxxxx/view speakers:3`
 
 ### Supported File Formats
 
