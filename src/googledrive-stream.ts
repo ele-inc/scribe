@@ -39,7 +39,7 @@ export class GoogleDriveStreamer {
   }
 
   /**
-   * 動画ファイルをストリーミングで音声に変換（ChatGPT提案版）
+   * 動画ファイルをストリーミングで音声に変換（URL直接指定版）
    * @param fileId - Google DriveのファイルID
    * @returns stream: MP3音声のReadableStream, done: 完了Promise
    */
@@ -51,11 +51,40 @@ export class GoogleDriveStreamer {
     console.log(`Converting video to audio: ${metadata.name} (${metadata.mimeType})`);
     console.log(`File size: ${(parseInt(metadata.size || '0') / (1024 * 1024)).toFixed(2)}MB`);
 
-    // ffmpegプロセスを起動（エラー出力を最小限に）
+    // アクセストークンを取得
+    // @ts-ignore - 内部APIを使用
+    const auth = this.drive.context._options.auth;
+    const accessToken = await auth.getAccessToken();
+    const token = typeof accessToken === 'string' ? accessToken : accessToken?.token;
+
+    if (!token) {
+      throw new Error("Failed to get access token for Google Drive");
+    }
+
+    // Google Drive APIのダウンロードURL
+    const mediaUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+
+    // ffmpegプロセスを起動（URLを直接指定）
     const proc = new Deno.Command("ffmpeg", {
       args: [
-        "-hide_banner", "-loglevel", "error", "-nostdin",
-        "-i", "pipe:0",           // 標準入力から読む
+        "-hide_banner", "-loglevel", "verbose", "-progress", "-", "-stats", "-nostdin",  // 詳細なログと進捗を表示
+        // HTTPヘッダーでアクセストークンを渡す
+        "-headers", `Authorization: Bearer ${token}`,
+        // ネットワークタイムアウトを60秒に設定
+        "-rw_timeout", "60000000",
+        // バッファサイズを制限（重要！）
+        "-http_persistent", "0",  // HTTP接続を再利用しない
+        "-reconnect", "1",        // 接続が切れたら再接続
+        "-reconnect_streamed", "1", // ストリーミング時も再接続
+        // MP4の解析は最小限に
+        "-probesize", "10M",      // 10MBに削減
+        "-analyzeduration", "10M", // 10秒に削減
+        // より高速な処理のための設定
+        "-threads", "0",          // 自動的に最適なスレッド数を使用
+        // 入力フォーマットを指定（ストリーミング対応）
+        "-f", "mp4",
+        // Google Drive URLを直接入力
+        "-i", mediaUrl,
         "-vn",                    // 動画トラックを無視
         "-acodec", "libmp3lame",  // MP3エンコーダー
         "-ab", "128k",            // ビットレート
@@ -64,12 +93,12 @@ export class GoogleDriveStreamer {
         "-f", "mp3",              // 出力フォーマット
         "pipe:1"                  // 標準出力へ
       ],
-      stdin: "piped",
+      stdin: "null",  // stdinは使わない
       stdout: "piped",
       stderr: "piped",
     }).spawn();
 
-    // stderrをログへ（エラーのみ）
+    // stderrをログへ
     (async () => {
       const decoder = new TextDecoder();
       const reader = proc.stderr.getReader();
@@ -78,64 +107,40 @@ export class GoogleDriveStreamer {
           const { done, value } = await reader.read();
           if (done) break;
           const text = decoder.decode(value).trim();
-          if (text) console.log("ffmpeg:", text);
+          if (text) {
+            console.log("ffmpeg:", text);
+            // libmp3lameが無い場合のエラーを検出
+            if (text.includes("Unknown encoder 'libmp3lame'")) {
+              console.error("Warning: libmp3lame not available, consider using WAV fallback");
+            }
+          }
         }
       } catch (e) {
         console.error("Error reading ffmpeg stderr:", e);
       }
     })();
 
-    // Google Driveから Node Readable を取得
-    const { data: nodeStream } = await this.drive.files.get(
-      { fileId, alt: "media", supportsAllDrives: true },
-      { responseType: "stream", timeout: 3600000 }
-    );
-
-    // Node Stream → Web Stream に変換
-    // Deno は Node.js 互換レイヤーを持っている
-    const { Readable } = await import("node:stream");
-    const webReadable = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
-
-    // 進捗表示を追加
-    let downloadedBytes = 0;
-    const startTime = performance.now();
-    let lastProgressTime = startTime;
-
-    const monitoredStream = new TransformStream<Uint8Array, Uint8Array>({
+    // 出力ストリームにバイト数カウンターを追加
+    let outputBytes = 0;
+    const countedStream = new TransformStream<Uint8Array, Uint8Array>({
       transform(chunk, controller) {
-        downloadedBytes += chunk.length;
-        const currentTime = performance.now();
-
-        // 1秒ごとに進捗表示
-        if (currentTime - lastProgressTime > 1000) {
-          const speed = (downloadedBytes / (1024 * 1024)) / ((currentTime - startTime) / 1000);
-          console.log(`Streaming: ${(downloadedBytes / (1024 * 1024)).toFixed(2)}MB at ${speed.toFixed(2)}MB/s`);
-          lastProgressTime = currentTime;
-        }
-
+        outputBytes += chunk.length;
         controller.enqueue(chunk);
       },
       flush() {
-        const totalTime = (performance.now() - startTime) / 1000;
-        const totalMB = downloadedBytes / (1024 * 1024);
-        console.log(`Download complete: ${totalMB.toFixed(2)}MB in ${totalTime.toFixed(2)}s`);
+        console.log(`Total audio output: ${(outputBytes / (1024 * 1024)).toFixed(2)}MB`);
+        if (outputBytes === 0) {
+          console.error("WARNING: ffmpeg produced 0 bytes output!");
+        }
       }
     });
 
-    // pipeTo でバックプレッシャーとエラー伝播を自動処理
-    const inputPump = webReadable
-      .pipeThrough(monitoredStream)
-      .pipeTo(proc.stdin);
+    // ffmpegの出力をカウンター経由で返す
+    const stream = proc.stdout.pipeThrough(countedStream);
 
-    // 呼び出し側に返す出力ストリーム
-    const stream = proc.stdout;
-
-    // 完了Promise（入力完了→ffmpeg終了コード検査まで）
+    // 完了Promise（ffmpeg終了コード検査）
     const done = (async () => {
       try {
-        await inputPump;  // 入力のポンプ完了を待つ
-        console.log("Input pump completed, waiting for ffmpeg to finish...");
-
         const status = await proc.status;
         if (!status.success) {
           throw new Error(`ffmpeg failed with exit code: ${status.code}`);
@@ -161,15 +166,54 @@ export class GoogleDriveStreamer {
   }> {
     const metadata = await this.getFileMetadata(fileId);
     console.log(`Streaming audio: ${metadata.name} (${metadata.mimeType})`);
+    console.log(`File size: ${(parseInt(metadata.size || '0') / (1024 * 1024)).toFixed(2)}MB`);
 
-    const { data: nodeStream } = await this.drive.files.get(
-      { fileId, alt: "media", supportsAllDrives: true },
-      { responseType: "stream", timeout: 3600000 }
-    );
+    // アクセストークンを取得
+    // @ts-ignore - 内部APIを使用
+    const auth = this.drive.context._options.auth;
+    const accessToken = await auth.getAccessToken();
+    const token = typeof accessToken === 'string' ? accessToken : accessToken?.token;
 
-    // Node Stream → Web Stream
-    const { Readable } = await import("node:stream");
-    const stream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
+    if (!token) {
+      throw new Error("Failed to get access token for Google Drive");
+    }
+
+    // Google Drive APIのダウンロードURL
+    const mediaUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+
+    // fetchを使用して直接ストリーミング
+    const response = await fetch(mediaUrl, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch audio file: ${response.status} ${response.statusText}`);
+    }
+
+    if (!response.body) {
+      throw new Error('No response body available');
+    }
+
+    // バイト数カウンターを追加
+    let downloadedBytes = 0;
+    const startTime = performance.now();
+
+    const countedStream = new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        downloadedBytes += chunk.length;
+        controller.enqueue(chunk);
+      },
+      flush() {
+        const totalTime = (performance.now() - startTime) / 1000;
+        const totalMB = downloadedBytes / (1024 * 1024);
+        console.log(`Audio download complete: ${totalMB.toFixed(2)}MB in ${totalTime.toFixed(2)}s`);
+      }
+    });
+
+    // レスポンスボディをカウンター経由で返す
+    const stream = response.body.pipeThrough(countedStream);
 
     // 完了Promiseは即座に解決（音声は変換不要）
     const done = Promise.resolve();
