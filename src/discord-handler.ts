@@ -65,7 +65,7 @@ export async function handleDiscordInteraction(request: Request): Promise<Respon
     const commandInteraction = interaction as APIChatInputApplicationCommandInteraction;
 
     if (commandInteraction.data.name === "transcribe") {
-      return await handleTranscribeCommand(commandInteraction);
+      return handleTranscribeCommand(commandInteraction);
     }
   }
 
@@ -122,14 +122,27 @@ function handleTranscribeCommand(
   }
 
   // Defer the reply immediately (Discord requires response within 3 seconds)
+  // This tells Discord we're processing and prevents timeout
   const deferResponse = deferInteractionReply();
 
-  // Process in background
-  processDiscordTranscription(interaction, {
-    url: urlOption?.value as string,
-    fileAttachment: fileOption ? interaction.data.resolved?.attachments?.[fileOption.value as string] : null,
-    options: transcriptionOptions,
-  }).catch(console.error);
+  // Start processing asynchronously without blocking the response
+  // Use Promise.resolve to ensure the process starts but doesn't block
+  Promise.resolve().then(async () => {
+    try {
+      await processDiscordTranscription(interaction, {
+        url: urlOption?.value as string,
+        fileAttachment: fileOption ? interaction.data.resolved?.attachments?.[fileOption.value as string] : null,
+        options: transcriptionOptions,
+      });
+    } catch (error) {
+      console.error("Error processing transcription:", error);
+      // Try to update the interaction with error message
+      await editInteractionReply(
+        interaction.token,
+        `❌ エラーが発生しました: ${error instanceof Error ? error.message : "Unknown error"}`
+      ).catch(console.error);
+    }
+  });
 
   return deferResponse;
 }
@@ -164,29 +177,35 @@ function handleMessageCommand(
   const deferResponse = deferInteractionReply();
 
   // Process each file/URL in background
-  if (googleDriveUrls.length > 0) {
-    for (const url of googleDriveUrls) {
-      // deno-lint-ignore no-explicit-any
-      (globalThis as any).EdgeRuntime.waitUntil(
-        processGoogleDriveTranscription(interaction, url, {
-          diarize: true,
-          showTimestamp: true,
-          tagAudioEvents: true
-        })
-      );
-    }
-  }
+  Promise.resolve().then(async () => {
+    try {
+      if (googleDriveUrls.length > 0) {
+        for (const url of googleDriveUrls) {
+          await processGoogleDriveTranscription(interaction, url, {
+            diarize: true,
+            showTimestamp: true,
+            tagAudioEvents: true
+          });
+        }
+      }
 
-  if (audioVideoAttachments && audioVideoAttachments.length > 0) {
-    for (const attachment of audioVideoAttachments) {
-      // Process attachment asynchronously
-      processDiscordAttachment(interaction, attachment, {
-        diarize: true,
-        showTimestamp: true,
-        tagAudioEvents: true
-      }).catch(console.error);
+      if (audioVideoAttachments && audioVideoAttachments.length > 0) {
+        for (const attachment of audioVideoAttachments) {
+          await processDiscordAttachment(interaction, attachment, {
+            diarize: true,
+            showTimestamp: true,
+            tagAudioEvents: true
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error processing message command:", error);
+      await editInteractionReply(
+        interaction.token,
+        `❌ エラーが発生しました: ${error instanceof Error ? error.message : "Unknown error"}`
+      ).catch(console.error);
     }
-  }
+  });
 
   return deferResponse;
 }
@@ -235,7 +254,7 @@ async function processGoogleDriveTranscription(
   url: string,
   options: TranscriptionOptions
 ) {
-  const channelId = interaction.channel?.id || interaction.channel_id || "";
+  const channelId = interaction.channel?.id || "";
 
   try {
     // Create temporary file path
@@ -300,7 +319,7 @@ async function processDiscordAttachment(
   attachment: APIAttachment,
   options: TranscriptionOptions
 ) {
-  const channelId = interaction.channel?.id || interaction.channel_id || "";
+  const channelId = interaction.channel?.id || "";
 
   try {
     // Download the file
