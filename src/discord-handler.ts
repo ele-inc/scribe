@@ -108,17 +108,20 @@ function handleTranscribeCommand(
 
   // If neither URL nor file is provided
   if (!urlOption && !fileOption) {
-    const usageMessage = `📝 **使い方**\n\n` +
-      `音声または動画ファイルをアップロードするか、Google DriveのURLを指定してください。\n\n` +
-      `**オプション:**\n` +
-      `• \`--no-diarize\`: 話者識別を無効化\n` +
-      `• \`--no-timestamp\`: タイムスタンプを非表示\n` +
-      `• \`--no-audio-events\`: 音声イベントのタグを無効化\n` +
-      `• \`--num-speakers <数>\`: 話者数を指定（デフォルト: 2）\n` +
-      `• \`--speaker-names "<名前1>,<名前2>"\`: 話者名を指定（AIが自動判定）\n\n` +
-      `**使用例:**\n` +
-      `/transcribe url:https://drive.google.com/file/d/xxxxx/view options:--num-speakers 3\n` +
-      `/transcribe file:<ファイル> options:--speaker-names "田中,山田"`;
+    const usageMessage = `**🎙️概要**
+音声・動画ファイルやGoogle DriveのURLから文字起こしを行います。
+チャット欄に/transcribeと入力で使用開始。
+
+**⚙️オプション**
+• \`--no-diarize\`: 話者識別をオフ ※話者が一人の場合には使用推奨
+• \`--num-speakers <数>\`: 話者数を指定（デフォルト:2）※指定することで話者識別の精度が向上します
+• \`--speaker-names 名前1,名前2\`: 話者名を設定（順不同、人数分必要）
+• \`--no-timestamp\`: タイムスタンプを非表示
+• \`--no-audio-events\`: 音声イベントを非表示
+
+**⚠️注意点**
+•「アプリケーションが応答しませんでした」と表示されても、Discordの仕様によるもので処理は実行されています。
+•Google DriveのURLからの文字起こしは、最大20GBのファイルに対応しています。`;
 
     return replyToInteraction(usageMessage, true);
   }
