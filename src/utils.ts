@@ -5,7 +5,7 @@ export { formatTimestamp } from "./lib/time.ts";
 export { getFileExtensionFromMime, isVideoMimeType } from "./lib/mime-types.ts";
 export { extractSentences, groupBySpeaker } from "./lib/text-processing.ts";
 export { parseTranscriptionOptions, generateOptionInfo } from "./lib/transcription-options.ts";
-export { extractCloudUrls, detectCloudProvider } from "./lib/cloud-storage.ts";
+export { extractCloudUrl, detectCloudProvider } from "./lib/cloud-storage.ts";
 
 // Import for local use
 import { isVideoMimeType } from "./lib/mime-types.ts";

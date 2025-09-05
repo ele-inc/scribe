@@ -21,7 +21,7 @@ import {
 import { transcribeAudioFile } from "./scribe.ts";
 import { parseTranscriptionOptions, generateOptionInfo } from "./utils.ts";
 import { 
-  extractCloudUrls, 
+  extractCloudUrl, 
   downloadFromCloud, 
   isTranscribableCloudFile,
   getProviderDisplayName 
@@ -173,13 +173,10 @@ function handleMessageCommand(
     return mimeType?.startsWith("audio/") || mimeType?.startsWith("video/");
   });
 
-  // Check for cloud storage URLs in message content
-  const cloudUrls = extractCloudUrls(message.content || "");
-  const googleDriveUrls = cloudUrls.filter(u => u.provider === 'google-drive').map(u => u.url);
-  const dropboxUrls = cloudUrls.filter(u => u.provider === 'dropbox').map(u => u.url);
+  // Check for cloud storage URL in message content
+  const cloudUrl = extractCloudUrl(message.content || "");
 
-  if ((!audioVideoAttachments || audioVideoAttachments.length === 0) && 
-      googleDriveUrls.length === 0 && dropboxUrls.length === 0) {
+  if ((!audioVideoAttachments || audioVideoAttachments.length === 0) && !cloudUrl) {
     return replyToInteraction(
       "このメッセージには音声/動画ファイル、Google Drive、またはDropboxのURLが含まれていません。",
       true,
@@ -192,9 +189,15 @@ function handleMessageCommand(
   // Process each file/URL in background
   Promise.resolve().then(async () => {
     try {
-      if (googleDriveUrls.length > 0) {
-        for (const url of googleDriveUrls) {
-          await processGoogleDriveTranscription(interaction, url, {
+      if (cloudUrl) {
+        if (cloudUrl.provider === 'google-drive') {
+          await processGoogleDriveTranscription(interaction, cloudUrl.url, {
+            diarize: true,
+            showTimestamp: true,
+            tagAudioEvents: true
+          });
+        } else if (cloudUrl.provider === 'dropbox') {
+          await processDropboxTranscription(interaction, cloudUrl.url, {
             diarize: true,
             showTimestamp: true,
             tagAudioEvents: true
@@ -202,24 +205,14 @@ function handleMessageCommand(
         }
       }
 
-      if (dropboxUrls.length > 0) {
-        for (const url of dropboxUrls) {
-          await processDropboxTranscription(interaction, url, {
-            diarize: true,
-            showTimestamp: true,
-            tagAudioEvents: true
-          });
-        }
-      }
-
+      // Process first audio/video attachment
       if (audioVideoAttachments && audioVideoAttachments.length > 0) {
-        for (const attachment of audioVideoAttachments) {
-          await processDiscordAttachment(interaction, attachment, {
-            diarize: true,
-            showTimestamp: true,
-            tagAudioEvents: true
-          });
-        }
+        const attachment = audioVideoAttachments[0];
+        await processDiscordAttachment(interaction, attachment, {
+          diarize: true,
+          showTimestamp: true,
+          tagAudioEvents: true
+        });
       }
     } catch (error) {
       console.error("Error processing message command:", error);
@@ -245,14 +238,14 @@ async function processDiscordTranscription(
   try {
     // Handle Google Drive or Dropbox URL
     if (params.url) {
-      const cloudUrls = extractCloudUrls(params.url);
-      const googleDriveUrls = cloudUrls.filter(u => u.provider === 'google-drive').map(u => u.url);
-      const dropboxUrls = cloudUrls.filter(u => u.provider === 'dropbox').map(u => u.url);
+      const cloudUrl = extractCloudUrl(params.url);
 
-      if (googleDriveUrls.length > 0) {
-        await processGoogleDriveTranscription(interaction, googleDriveUrls[0], params.options);
-      } else if (dropboxUrls.length > 0) {
-        await processDropboxTranscription(interaction, dropboxUrls[0], params.options);
+      if (cloudUrl) {
+        if (cloudUrl.provider === 'google-drive') {
+          await processGoogleDriveTranscription(interaction, cloudUrl.url, params.options);
+        } else if (cloudUrl.provider === 'dropbox') {
+          await processDropboxTranscription(interaction, cloudUrl.url, params.options);
+        }
       } else {
         await editInteractionReply(
           interaction.token,

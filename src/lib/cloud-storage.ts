@@ -32,18 +32,21 @@ export function detectCloudProvider(url: string): CloudProvider {
 }
 
 /**
- * Extract all cloud storage URLs from text
+ * Extract first cloud storage URL from text
+ * Returns null if no cloud storage URL is found
  */
-export function extractCloudUrls(text: string): CloudFileInfo[] {
+export function extractCloudUrl(text: string): CloudFileInfo | null {
   const urlPattern = /https?:\/\/[^\s<>]+/gi;
   const urls = text.match(urlPattern) || [];
   
-  return urls
-    .map(url => ({
-      provider: detectCloudProvider(url),
-      url,
-    }))
-    .filter(info => info.provider !== 'unknown');
+  for (const url of urls) {
+    const provider = detectCloudProvider(url);
+    if (provider !== 'unknown') {
+      return { provider, url };
+    }
+  }
+  
+  return null;
 }
 
 /**
