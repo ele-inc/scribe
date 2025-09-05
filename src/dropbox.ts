@@ -85,9 +85,30 @@ export async function downloadDropboxFileToPath(
     let filename = "dropbox_file";
     const contentDisposition = response.headers.get("content-disposition");
     if (contentDisposition) {
-      const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-      if (filenameMatch) {
-        filename = filenameMatch[1].replace(/['"]/g, "");
+      // First try to extract filename* (RFC 5987 encoded filename for non-ASCII characters)
+      const encodedFilenameMatch = contentDisposition.match(/filename\*=([^;]+)/);
+      if (encodedFilenameMatch) {
+        // Format: UTF-8''encoded-filename
+        const encodedPart = encodedFilenameMatch[1];
+        const parts = encodedPart.split("''");
+        if (parts.length === 2) {
+          // Decode the percent-encoded UTF-8 filename
+          filename = decodeURIComponent(parts[1]);
+        }
+      } else {
+        // Fallback to regular filename parameter
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch) {
+          filename = filenameMatch[1].replace(/['"]/g, "");
+          // Try to decode if it appears to be encoded
+          try {
+            if (filename.includes('%')) {
+              filename = decodeURIComponent(filename);
+            }
+          } catch {
+            // Keep original if decoding fails
+          }
+        }
       }
     } else {
       // Try to extract filename from URL
