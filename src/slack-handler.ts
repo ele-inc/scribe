@@ -10,9 +10,7 @@ import { transcribeAudioFile } from "./scribe.ts";
 import { 
   extractCloudUrl, 
   downloadFromCloud, 
-  isTranscribableCloudFile,
-  formatCloudFileInfo,
-  getProviderDisplayName 
+  isTranscribableCloudFile
 } from "./lib/cloud-storage.ts";
 import { textResponse, okResponse, badRequest } from "./http-utils.ts";
 
@@ -78,11 +76,10 @@ export async function handleAppMention(event: SlackEvent) {
         const tempDir = await Deno.makeTempDir();
         const tempPath = `${tempDir}/gdrive_${Date.now()}.tmp`;
 
-        // Reply that we're processing the Google Drive file
-        const providerName = getProviderDisplayName(cloudUrl.provider);
+        // Reply that we're processing the cloud file
         await sendSlackMessage(
           event.channel,
-          `${providerName}ファイルを処理中...`,
+          `ファイルを処理中...`,
           event.ts,
         );
 
@@ -91,10 +88,9 @@ export async function handleAppMention(event: SlackEvent) {
 
         // Check if it's an audio/video file
         if (!isTranscribableCloudFile(mimeType)) {
-          const providerName = getProviderDisplayName(cloudUrl.provider);
           await sendSlackMessage(
             event.channel,
-            `${providerName}ファイル "${filename}" は音声または動画ファイルではありません。`,
+            `ファイル "${filename}" は音声または動画ファイルではありません。`,
             event.ts,
           );
           // Clean up temp file
@@ -107,7 +103,7 @@ export async function handleAppMention(event: SlackEvent) {
 
         await sendSlackMessage(
           event.channel,
-          `${getProviderDisplayName(cloudUrl.provider)}ファイル "${filename}" を受信しました。文字起こし中${optionText}...`,
+          `ファイル "${filename}" を受信しました。文字起こし中${optionText}...`,
           event.ts,
         );
 
@@ -125,7 +121,7 @@ export async function handleAppMention(event: SlackEvent) {
             userId: event.user,
             options,
             filename,
-            isGoogleDrive: cloudUrl.provider === 'google-drive',
+            isGoogleDrive: true, // Flag for cloud file
             tempPath, // Pass temp path for cleanup
           }).catch(console.error);
         return;

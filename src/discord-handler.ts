@@ -23,9 +23,7 @@ import { parseTranscriptionOptions, generateOptionInfo } from "./utils.ts";
 import { 
   extractCloudUrl, 
   downloadFromCloud, 
-  isTranscribableCloudFile,
-  getProviderDisplayName,
-  detectCloudProvider
+  isTranscribableCloudFile
 } from "./lib/cloud-storage.ts";
 
 // Handle Discord interactions
@@ -191,19 +189,11 @@ function handleMessageCommand(
   Promise.resolve().then(async () => {
     try {
       if (cloudUrl) {
-        if (cloudUrl.provider === 'google-drive') {
-          await processGoogleDriveTranscription(interaction, cloudUrl.url, {
-            diarize: true,
-            showTimestamp: true,
-            tagAudioEvents: true
-          });
-        } else if (cloudUrl.provider === 'dropbox') {
-          await processDropboxTranscription(interaction, cloudUrl.url, {
-            diarize: true,
-            showTimestamp: true,
-            tagAudioEvents: true
-          });
-        }
+        await processCloudFileTranscription(interaction, cloudUrl.url, {
+          diarize: true,
+          showTimestamp: true,
+          tagAudioEvents: true
+        });
       }
 
       // Process first audio/video attachment
@@ -242,15 +232,11 @@ async function processDiscordTranscription(
       const cloudUrl = extractCloudUrl(params.url);
 
       if (cloudUrl) {
-        if (cloudUrl.provider === 'google-drive') {
-          await processGoogleDriveTranscription(interaction, cloudUrl.url, params.options);
-        } else if (cloudUrl.provider === 'dropbox') {
-          await processDropboxTranscription(interaction, cloudUrl.url, params.options);
-        }
+        await processCloudFileTranscription(interaction, cloudUrl.url, params.options);
       } else {
         await editInteractionReply(
           interaction.token,
-          "❌ 有効なGoogle DriveまたはDropboxのURLが見つかりません。"
+          "❌ 有効なクラウドストレージのURLが見つかりません。"
         );
       }
       return;
@@ -269,8 +255,8 @@ async function processDiscordTranscription(
   }
 }
 
-// Process Google Drive file for Discord
-async function processGoogleDriveTranscription(
+// Process cloud storage file for Discord
+async function processCloudFileTranscription(
   interaction: APIInteraction,
   url: string,
   options: TranscriptionOptions
@@ -298,10 +284,9 @@ async function processGoogleDriveTranscription(
     }
 
     // Update status
-    const provider = detectCloudProvider(url);
     await editInteractionReply(
       interaction.token,
-      `🎵 ${getProviderDisplayName(provider)}ファイル "${filename}" を文字起こし中...`
+      `🎵 ファイル "${filename}" を文字起こし中...`
     );
 
     // Transcribe
@@ -335,71 +320,6 @@ async function processGoogleDriveTranscription(
   }
 }
 
-// Process Dropbox file for Discord
-async function processDropboxTranscription(
-  interaction: APIInteraction,
-  url: string,
-  options: TranscriptionOptions
-) {
-  const channelId = interaction.channel?.id || "";
-
-  try {
-    // Create temporary file path
-    const tempDir = await Deno.makeTempDir();
-    const tempPath = `${tempDir}/dropbox_${Date.now()}.tmp`;
-
-    // Download and get metadata
-    const { filename, mimeType = "" } = await downloadFromCloud(url, tempPath);
-
-    // Check if it's an audio/video file
-    if (!isTranscribableCloudFile(mimeType)) {
-      await editInteractionReply(
-        interaction.token,
-        `❌ ファイル "${filename}" は音声または動画ファイルではありません。`
-      );
-      // Clean up
-      await Deno.remove(tempPath).catch(() => {});
-      await Deno.remove(tempDir).catch(() => {});
-      return;
-    }
-
-    // Update status
-    const provider = detectCloudProvider(url);
-    await editInteractionReply(
-      interaction.token,
-      `🎵 ${getProviderDisplayName(provider)}ファイル "${filename}" を文字起こし中...`
-    );
-
-    // Transcribe
-    const fileURL = `file://${tempPath}`;
-
-    await transcribeAudioFile({
-      fileURL,
-      fileType: mimeType,
-      duration: 0,
-      channelId,
-      timestamp: interaction.id,
-      userId: interaction.member?.user?.id || interaction.user?.id || "",
-      options,
-      filename,
-      isGoogleDrive: true, // Reuse flag for external file handling
-      tempPath,
-      platform: "discord",
-    });
-
-    // Final success message
-    await editInteractionReply(
-      interaction.token,
-      `✅ "${filename}" の文字起こしが完了しました！`
-    );
-  } catch (error) {
-    console.error("Dropbox processing error:", error);
-    await editInteractionReply(
-      interaction.token,
-      `❌ Dropboxファイルの処理中にエラーが発生しました: ${error instanceof Error ? error.message : "Unknown error"}`
-    );
-  }
-}
 
 // Process Discord attachment
 async function processDiscordAttachment(
