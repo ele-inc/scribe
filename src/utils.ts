@@ -1,47 +1,15 @@
 import { TranscriptionOptions } from "./types.ts";
-import { isGoogleDriveUrl } from "./googledrive.ts";
-import { isDropboxUrl } from "./dropbox.ts";
 
 // Re-export utilities from lib modules
 export { formatTimestamp } from "./lib/time.ts";
 export { getFileExtensionFromMime, isVideoMimeType } from "./lib/mime-types.ts";
 export { extractSentences, groupBySpeaker } from "./lib/text-processing.ts";
+export { parseTranscriptionOptions, generateOptionInfo } from "./lib/transcription-options.ts";
+export { extractCloudUrls, detectCloudProvider } from "./lib/cloud-storage.ts";
 
 // Import for local use
 import { isVideoMimeType } from "./lib/mime-types.ts";
 
-export const parseTranscriptionOptions = (text: string = ""): TranscriptionOptions => {
-  const diarize = !text.includes("--no-diarize");
-
-  // Parse num-speakers from command, or use default of 2 when diarize is enabled
-  let numSpeakers: number | undefined;
-  if (diarize) {
-    const numSpeakersMatch = text.match(/--num-speakers\s+(\d+)/);
-    if (numSpeakersMatch) {
-      const parsed = parseInt(numSpeakersMatch[1], 10);
-      numSpeakers = (parsed >= 1 && parsed <= 32) ? parsed : 2;
-    } else {
-      numSpeakers = 2; // Default to 2 speakers when diarize is true
-    }
-  }
-
-  // Parse speaker names (supports both quoted and unquoted format)
-  let speakerNames: string[] | undefined;
-  const namesMatch = text.match(/--speaker-names\s+(?:"([^"]+)"|([^-]+?)(?:\s+--|\s*$))/);
-  if (namesMatch) {
-    const names = namesMatch[1] || namesMatch[2];
-    // Split by both full-width and half-width comma
-    speakerNames = names.trim().split(/[,，]/).map(name => name.trim());
-  }
-
-  return {
-    diarize,
-    showTimestamp: !text.includes("--no-timestamp"),
-    tagAudioEvents: !text.includes("--no-audio-events"),
-    ...(numSpeakers ? { numSpeakers } : {}),
-    ...(speakerNames ? { speakerNames } : {}),
-  };
-};
 
 
 
@@ -51,17 +19,6 @@ export const createTranscriptionHeader = (filename: string): string => {
 }
 
 
-export const extractGoogleDriveUrls = (text: string): string[] => {
-  const urlPattern = /https?:\/\/[^\s<>]+/gi;
-  const urls = text.match(urlPattern) || [];
-  return urls.filter(url => isGoogleDriveUrl(url));
-};
-
-export const extractDropboxUrls = (text: string): string[] => {
-  const urlPattern = /https?:\/\/[^\s<>]+/gi;
-  const urls = text.match(urlPattern) || [];
-  return urls.filter(url => isDropboxUrl(url));
-};
 
 /**
  * 動画ファイルから音声(MP3)を抽出する
