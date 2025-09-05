@@ -4,9 +4,11 @@
  */
 
 import { SlackEvent } from "./types.ts";
-import { parseTranscriptionOptions } from "./utils.ts";
+import { parseTranscriptionOptions, extractGoogleDriveUrls, extractDropboxUrls } from "./utils.ts";
 import { sendSlackMessage } from "./slack.ts";
 import { transcribeAudioFile } from "./scribe.ts";
+import { downloadGoogleDriveFile } from "./googledrive.ts";
+import { downloadDropboxFile } from "./dropbox.ts";
 import { textResponse, okResponse, badRequest } from "./http-utils.ts";
 import { 
   extractCloudStorageUrls, 
@@ -218,18 +220,18 @@ export async function handleSlackEvents(req: Request): Promise<Response> {
     return handleUrlVerification(body.challenge);
   }
 
-  // Handle events
+  // Handle event callbacks
   if (body.type === "event_callback") {
-    const event = body.event;
+    const event = body.event as SlackEvent;
 
-    if (event.type !== "app_mention") {
-      return okResponse();
+    // Handle app mention events
+    if (event.type === "app_mention" && event.text) {
+      // Process mention asynchronously without blocking response
+      handleAppMention(event).catch(console.error);
+      return okResponse(); // Return immediately
     }
-
-    // Process in background to respond quickly to Slack
-    handleAppMention(event).catch(console.error);
-    return okResponse();
   }
 
-  return badRequest("Unknown event type");
+  // Return error for unhandled events
+  return badRequest("Unhandled event type");
 }
