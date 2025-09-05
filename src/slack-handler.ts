@@ -4,11 +4,14 @@
  */
 
 import { SlackEvent } from "./types.ts";
-import { parseTranscriptionOptions, extractGoogleDriveUrls, extractDropboxUrls } from "./utils.ts";
+import { parseTranscriptionOptions, generateOptionInfo } from "./utils.ts";
 import { sendSlackMessage } from "./slack.ts";
 import { transcribeAudioFile } from "./scribe.ts";
-import { downloadGoogleDriveFile } from "./googledrive.ts";
-import { downloadDropboxFile } from "./dropbox.ts";
+import { 
+  extractCloudUrl, 
+  downloadFromCloud, 
+  isTranscribableCloudFile
+} from "./lib/cloud-storage.ts";
 import { textResponse, okResponse, badRequest } from "./http-utils.ts";
 
 // Set to track processed events (with size limit to prevent memory leak)
@@ -39,12 +42,11 @@ export async function handleAppMention(event: SlackEvent) {
   const options = parseTranscriptionOptions(event.text);
   console.log("Parsed options:", options);
 
-  // Check for Google Drive and Dropbox URLs in the message
-  const googleDriveUrls = extractGoogleDriveUrls(event.text || "");
-  const dropboxUrls = extractDropboxUrls(event.text || "");
+  // Check for cloud storage URL in the message
+  const cloudUrl = extractCloudUrl(event.text || "");
 
-  // Check if the mention includes files or cloud storage URLs
-  if ((!event.files || event.files.length === 0) && googleDriveUrls.length === 0 && dropboxUrls.length === 0) {
+  // Check if the mention includes files or cloud storage URL
+  if ((!event.files || event.files.length === 0) && !cloudUrl) {
     const usageMessage = `📝 *使い方*\n\n` +
       `音声または動画ファイルをアップロードしてメンションするか、\n` +
       `Google DriveまたはDropboxのリンクを含めてメンションしてください。\n\n` +
@@ -68,53 +70,40 @@ export async function handleAppMention(event: SlackEvent) {
     return;
   }
 
-  // Process Google Drive URLs first
-  for (const driveUrl of googleDriveUrls) {
+  // Process cloud storage URL if present
+  if (cloudUrl) {
         // Create temporary file path
         const tempDir = await Deno.makeTempDir();
         const tempPath = `${tempDir}/gdrive_${Date.now()}.tmp`;
 
-        // Reply that we're processing the Google Drive file
+        // Reply that we're processing the cloud file
         await sendSlackMessage(
           event.channel,
-          `Google Driveファイルを処理中...`,
+          `ファイルを処理中...`,
           event.ts,
         );
 
         // Download and get metadata
-        const { filename, mimeType } = await downloadGoogleDriveFile(driveUrl, tempPath);
+        const { filename, mimeType = "" } = await downloadFromCloud(cloudUrl.url, tempPath);
 
         // Check if it's an audio/video file
-        if (!mimeType.startsWith("audio/") && !mimeType.startsWith("video/")) {
+        if (!isTranscribableCloudFile(mimeType)) {
           await sendSlackMessage(
             event.channel,
-            `Google Driveファイル "${filename}" は音声または動画ファイルではありません。`,
+            `ファイル "${filename}" は音声または動画ファイルではありません。`,
             event.ts,
           );
           // Clean up temp file
           await Deno.remove(tempPath);
-          continue;
+          return;
         }
 
         // Reply with file info including options
-        const optionInfo = [];
-        if (!options.diarize) optionInfo.push("話者識別OFF");
-        if (!options.showTimestamp) optionInfo.push("タイムスタンプOFF");
-        if (!options.tagAudioEvents) optionInfo.push("音声イベントOFF");
-        if (options.diarize && options.numSpeakers && options.numSpeakers !== 2) {
-          optionInfo.push(`話者数: ${options.numSpeakers}`);
-        }
-        if (options.speakerNames && options.speakerNames.length > 0) {
-          optionInfo.push(`話者名: ${options.speakerNames.join(", ")}`);
-        }
-
-        const optionText = optionInfo.length > 0
-          ? ` (${optionInfo.join(", ")})`
-          : "";
+        const optionText = generateOptionInfo(options);
 
         await sendSlackMessage(
           event.channel,
-          `Google Driveファイル "${filename}" を受信しました。文字起こし中${optionText}...`,
+          `ファイル "${filename}" を受信しました。文字起こし中${optionText}...`,
           event.ts,
         );
 
@@ -132,117 +121,23 @@ export async function handleAppMention(event: SlackEvent) {
             userId: event.user,
             options,
             filename,
-            isGoogleDrive: true,
+            isGoogleDrive: true, // Flag for cloud file
             tempPath, // Pass temp path for cleanup
           }).catch(console.error);
+        return;
   }
 
-  // Process Dropbox URLs
-  for (const dropboxUrl of dropboxUrls) {
-        // Create temporary file path
-        const tempDir = await Deno.makeTempDir();
-        const tempPath = `${tempDir}/dropbox_${Date.now()}.tmp`;
-
-        // Reply that we're processing the Dropbox file
-        await sendSlackMessage(
-          event.channel,
-          `Dropboxファイルを処理中...`,
-          event.ts,
-        );
-
-        try {
-          // Download and get metadata
-          const { filename, mimeType } = await downloadDropboxFile(dropboxUrl, tempPath);
-
-          // Check if it's an audio/video file
-          if (!mimeType.startsWith("audio/") && !mimeType.startsWith("video/")) {
-            await sendSlackMessage(
-              event.channel,
-              `Dropboxファイル "${filename}" は音声または動画ファイルではありません。`,
-              event.ts,
-            );
-            // Clean up temp file
-            await Deno.remove(tempPath);
-            continue;
-          }
-
-          // Reply with file info including options
-          const optionInfo = [];
-          if (!options.diarize) optionInfo.push("話者識別OFF");
-          if (!options.showTimestamp) optionInfo.push("タイムスタンプOFF");
-          if (!options.tagAudioEvents) optionInfo.push("音声イベントOFF");
-          if (options.diarize && options.numSpeakers && options.numSpeakers !== 2) {
-            optionInfo.push(`話者数: ${options.numSpeakers}`);
-          }
-          if (options.speakerNames && options.speakerNames.length > 0) {
-            optionInfo.push(`話者名: ${options.speakerNames.join(", ")}`);
-          }
-
-          const optionText = optionInfo.length > 0
-            ? ` (${optionInfo.join(", ")})`
-            : "";
-
-          await sendSlackMessage(
-            event.channel,
-            `Dropboxファイル "${filename}" を受信しました。文字起こし中${optionText}...`,
-            event.ts,
-          );
-
-          // Create file URL for local temp file
-          const fileURL = `file://${tempPath}`;
-
-          // Run transcription in the background
-          // Process transcription asynchronously without blocking response
-          transcribeAudioFile({
-              fileURL,
-              fileType: mimeType,
-              duration: 0, // Duration not available from Dropbox
-              channelId: event.channel,
-              timestamp: event.ts,
-              userId: event.user,
-              options,
-              filename,
-              isGoogleDrive: true, // Reuse the same flag for external file handling
-              tempPath, // Pass temp path for cleanup
-            }).catch(console.error);
-        } catch (error) {
-          console.error("Error processing Dropbox file:", error);
-          await sendSlackMessage(
-            event.channel,
-            `Dropboxファイルの処理中にエラーが発生しました: ${error.message}`,
-            event.ts,
-          );
-        }
-  }
-
-    // Process regular Slack files
-    if (event.files && event.files.length > 0) {
-      for (const file of event.files) {
-        // Check if file is not audio or video
-        if (!file.mimetype || (!file.mimetype.startsWith("audio/") && !file.mimetype.startsWith("video/"))) {
-          await sendSlackMessage(
-            event.channel,
-            `ファイル "${file.name}" は音声または動画ファイルではありません。`,
-            event.ts,
-          );
-          continue;
-        }
+  // Process regular Slack files if no cloud URL was found
+  if (event.files && event.files.length > 0) {
+    // Process only the first audio/video file
+    const file = event.files.find(f => 
+      f.mimetype?.startsWith("audio/") || f.mimetype?.startsWith("video/")
+    );
+    
+    if (file) {
 
         // Reply with file info including options
-        const optionInfo = [];
-        if (!options.diarize) optionInfo.push("話者識別OFF");
-        if (!options.showTimestamp) optionInfo.push("タイムスタンプOFF");
-        if (!options.tagAudioEvents) optionInfo.push("音声イベントOFF");
-        if (options.diarize && options.numSpeakers && options.numSpeakers !== 2) {
-          optionInfo.push(`話者数: ${options.numSpeakers}`);
-        }
-        if (options.speakerNames && options.speakerNames.length > 0) {
-          optionInfo.push(`話者名: ${options.speakerNames.join(", ")}`);
-        }
-
-        const optionText = optionInfo.length > 0
-          ? ` (${optionInfo.join(", ")})`
-          : "";
+        const optionText = generateOptionInfo(options);
 
         await sendSlackMessage(
           event.channel,
@@ -261,8 +156,8 @@ export async function handleAppMention(event: SlackEvent) {
           options,
           filename: file.name,
         }).catch(console.error);
-      }
     }
+  }
 }
 
 /**

@@ -19,9 +19,12 @@ import {
   getDiscordFileInfo,
 } from "./discord.ts";
 import { transcribeAudioFile } from "./scribe.ts";
-import { parseTranscriptionOptions, extractGoogleDriveUrls, extractDropboxUrls } from "./utils.ts";
-import { downloadGoogleDriveFile } from "./googledrive.ts";
-import { downloadDropboxFile } from "./dropbox.ts";
+import { parseTranscriptionOptions, generateOptionInfo } from "./utils.ts";
+import { 
+  extractCloudUrl, 
+  downloadFromCloud, 
+  isTranscribableCloudFile
+} from "./lib/cloud-storage.ts";
 
 // Handle Discord interactions
 export async function handleDiscordInteraction(request: Request): Promise<Response> {
@@ -169,12 +172,10 @@ function handleMessageCommand(
     return mimeType?.startsWith("audio/") || mimeType?.startsWith("video/");
   });
 
-  // Check for Google Drive and Dropbox URLs in message content
-  const googleDriveUrls = extractGoogleDriveUrls(message.content || "");
-  const dropboxUrls = extractDropboxUrls(message.content || "");
+  // Check for cloud storage URL in message content
+  const cloudUrl = extractCloudUrl(message.content || "");
 
-  if ((!audioVideoAttachments || audioVideoAttachments.length === 0) && 
-      googleDriveUrls.length === 0 && dropboxUrls.length === 0) {
+  if ((!audioVideoAttachments || audioVideoAttachments.length === 0) && !cloudUrl) {
     return replyToInteraction(
       "このメッセージには音声/動画ファイル、Google Drive、またはDropboxのURLが含まれていません。",
       true,
@@ -187,34 +188,22 @@ function handleMessageCommand(
   // Process each file/URL in background
   Promise.resolve().then(async () => {
     try {
-      if (googleDriveUrls.length > 0) {
-        for (const url of googleDriveUrls) {
-          await processGoogleDriveTranscription(interaction, url, {
-            diarize: true,
-            showTimestamp: true,
-            tagAudioEvents: true
-          });
-        }
+      if (cloudUrl) {
+        await processCloudFileTranscription(interaction, cloudUrl.url, {
+          diarize: true,
+          showTimestamp: true,
+          tagAudioEvents: true
+        });
       }
 
-      if (dropboxUrls.length > 0) {
-        for (const url of dropboxUrls) {
-          await processDropboxTranscription(interaction, url, {
-            diarize: true,
-            showTimestamp: true,
-            tagAudioEvents: true
-          });
-        }
-      }
-
+      // Process first audio/video attachment
       if (audioVideoAttachments && audioVideoAttachments.length > 0) {
-        for (const attachment of audioVideoAttachments) {
-          await processDiscordAttachment(interaction, attachment, {
-            diarize: true,
-            showTimestamp: true,
-            tagAudioEvents: true
-          });
-        }
+        const attachment = audioVideoAttachments[0];
+        await processDiscordAttachment(interaction, attachment, {
+          diarize: true,
+          showTimestamp: true,
+          tagAudioEvents: true
+        });
       }
     } catch (error) {
       console.error("Error processing message command:", error);
@@ -238,19 +227,27 @@ async function processDiscordTranscription(
   }
 ) {
   try {
+    // Display initial status with option info
+    const optionText = generateOptionInfo(params.options);
+    const initialMessage = optionText 
+      ? `📝 文字起こしを開始します${optionText}...`
+      : `📝 文字起こしを開始します...`;
+    
+    await editInteractionReply(
+      interaction.token,
+      initialMessage
+    );
+
     // Handle Google Drive or Dropbox URL
     if (params.url) {
-      const googleDriveUrls = extractGoogleDriveUrls(params.url);
-      const dropboxUrls = extractDropboxUrls(params.url);
+      const cloudUrl = extractCloudUrl(params.url);
 
-      if (googleDriveUrls.length > 0) {
-        await processGoogleDriveTranscription(interaction, googleDriveUrls[0], params.options);
-      } else if (dropboxUrls.length > 0) {
-        await processDropboxTranscription(interaction, dropboxUrls[0], params.options);
+      if (cloudUrl) {
+        await processCloudFileTranscription(interaction, cloudUrl.url, params.options);
       } else {
         await editInteractionReply(
           interaction.token,
-          "❌ 有効なGoogle DriveまたはDropboxのURLが見つかりません。"
+          "❌ 有効なクラウドストレージのURLが見つかりません。"
         );
       }
       return;
@@ -269,8 +266,8 @@ async function processDiscordTranscription(
   }
 }
 
-// Process Google Drive file for Discord
-async function processGoogleDriveTranscription(
+// Process cloud storage file for Discord
+async function processCloudFileTranscription(
   interaction: APIInteraction,
   url: string,
   options: TranscriptionOptions
@@ -283,10 +280,10 @@ async function processGoogleDriveTranscription(
     const tempPath = `${tempDir}/gdrive_${Date.now()}.tmp`;
 
     // Download and get metadata
-    const { filename, mimeType } = await downloadGoogleDriveFile(url, tempPath);
+    const { filename, mimeType = "" } = await downloadFromCloud(url, tempPath);
 
     // Check if it's an audio/video file
-    if (!mimeType.startsWith("audio/") && !mimeType.startsWith("video/")) {
+    if (!isTranscribableCloudFile(mimeType)) {
       await editInteractionReply(
         interaction.token,
         `❌ ファイル "${filename}" は音声または動画ファイルではありません。`
@@ -297,10 +294,11 @@ async function processGoogleDriveTranscription(
       return;
     }
 
-    // Update status
+    // Update status with option info
+    const optionText = generateOptionInfo(options);
     await editInteractionReply(
       interaction.token,
-      `🎵 Google Driveファイル "${filename}" を文字起こし中...`
+      `🎵 ファイル "${filename}" を文字起こし中${optionText}...`
     );
 
     // Transcribe
@@ -334,70 +332,6 @@ async function processGoogleDriveTranscription(
   }
 }
 
-// Process Dropbox file for Discord
-async function processDropboxTranscription(
-  interaction: APIInteraction,
-  url: string,
-  options: TranscriptionOptions
-) {
-  const channelId = interaction.channel?.id || "";
-
-  try {
-    // Create temporary file path
-    const tempDir = await Deno.makeTempDir();
-    const tempPath = `${tempDir}/dropbox_${Date.now()}.tmp`;
-
-    // Download and get metadata
-    const { filename, mimeType } = await downloadDropboxFile(url, tempPath);
-
-    // Check if it's an audio/video file
-    if (!mimeType.startsWith("audio/") && !mimeType.startsWith("video/")) {
-      await editInteractionReply(
-        interaction.token,
-        `❌ ファイル "${filename}" は音声または動画ファイルではありません。`
-      );
-      // Clean up
-      await Deno.remove(tempPath).catch(() => {});
-      await Deno.remove(tempDir).catch(() => {});
-      return;
-    }
-
-    // Update status
-    await editInteractionReply(
-      interaction.token,
-      `🎵 Dropboxファイル "${filename}" を文字起こし中...`
-    );
-
-    // Transcribe
-    const fileURL = `file://${tempPath}`;
-
-    await transcribeAudioFile({
-      fileURL,
-      fileType: mimeType,
-      duration: 0,
-      channelId,
-      timestamp: interaction.id,
-      userId: interaction.member?.user?.id || interaction.user?.id || "",
-      options,
-      filename,
-      isGoogleDrive: true, // Reuse flag for external file handling
-      tempPath,
-      platform: "discord",
-    });
-
-    // Final success message
-    await editInteractionReply(
-      interaction.token,
-      `✅ "${filename}" の文字起こしが完了しました！`
-    );
-  } catch (error) {
-    console.error("Dropbox processing error:", error);
-    await editInteractionReply(
-      interaction.token,
-      `❌ Dropboxファイルの処理中にエラーが発生しました: ${error instanceof Error ? error.message : "Unknown error"}`
-    );
-  }
-}
 
 // Process Discord attachment
 async function processDiscordAttachment(
@@ -419,10 +353,11 @@ async function processDiscordAttachment(
     // Write to temp file
     await Deno.writeFile(tempPath, fileData);
 
-    // Update status
+    // Update status with option info
+    const optionText = generateOptionInfo(options);
     await editInteractionReply(
       interaction.token,
-      `🎵 "${attachment.filename}" を文字起こし中...`
+      `🎵 "${attachment.filename}" を文字起こし中${optionText}...`
     );
 
     // Transcribe
