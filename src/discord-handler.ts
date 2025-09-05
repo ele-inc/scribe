@@ -24,7 +24,8 @@ import {
   extractCloudUrl, 
   downloadFromCloud, 
   isTranscribableCloudFile,
-  getProviderDisplayName 
+  getProviderDisplayName,
+  detectCloudProvider
 } from "./lib/cloud-storage.ts";
 
 // Handle Discord interactions
@@ -297,9 +298,10 @@ async function processGoogleDriveTranscription(
     }
 
     // Update status
+    const provider = detectCloudProvider(url);
     await editInteractionReply(
       interaction.token,
-      `🎵 Google Driveファイル "${filename}" を文字起こし中...`
+      `🎵 ${getProviderDisplayName(provider)}ファイル "${filename}" を文字起こし中...`
     );
 
     // Transcribe
@@ -362,9 +364,10 @@ async function processDropboxTranscription(
     }
 
     // Update status
+    const provider = detectCloudProvider(url);
     await editInteractionReply(
       interaction.token,
-      `🎵 Dropboxファイル "${filename}" を文字起こし中...`
+      `🎵 ${getProviderDisplayName(provider)}ファイル "${filename}" を文字起こし中...`
     );
 
     // Transcribe
