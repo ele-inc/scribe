@@ -19,7 +19,7 @@ import {
   getDiscordFileInfo,
 } from "./discord.ts";
 import { transcribeAudioFile } from "./scribe.ts";
-import { parseTranscriptionOptions, generateOptionInfo } from "./utils.ts";
+import { parseTranscriptionOptions } from "./utils.ts";
 import { 
   extractCloudUrl, 
   downloadFromCloud, 
