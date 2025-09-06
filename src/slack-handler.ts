@@ -71,21 +71,14 @@ export async function handleAppMention(event: SlackEvent) {
         const tempDir = await Deno.makeTempDir();
         const tempPath = `${tempDir}/gdrive_${Date.now()}.tmp`;
 
-        // Reply that we're processing the Google Drive file
-        await sendSlackMessage(
-          event.channel,
-          `Google Driveファイルを処理中...`,
-          event.ts,
-        );
-
         // Download and get metadata
         const result = await downloadGoogleDriveFile(driveUrl, tempPath);
-        
+
         // Skip if file was not downloaded (non-media file)
         if (!result) {
           continue;  // Silently skip non-media files
         }
-        
+
         const { filename, mimeType } = result;
 
         // Reply with file info including options
