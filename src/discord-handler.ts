@@ -19,8 +19,13 @@ import {
   getDiscordFileInfo,
 } from "./discord.ts";
 import { transcribeAudioFile } from "./scribe.ts";
-import { parseTranscriptionOptions, extractGoogleDriveUrls } from "./utils.ts";
-import { downloadGoogleDriveFile } from "./googledrive.ts";
+import { parseTranscriptionOptions } from "./utils.ts";
+import { 
+  processGoogleDriveFile, 
+  extractMediaInfo, 
+  isValidAudioVideoFile
+} from "./file-processor.ts";
+import { createPlatformAdapter } from "./platform-adapter.ts";
 
 // Handle Discord interactions
 export async function handleDiscordInteraction(request: Request): Promise<Response> {
@@ -163,13 +168,12 @@ function handleMessageCommand(
   }
 
   // Check for attachments
-  const audioVideoAttachments = message.attachments?.filter(attachment => {
-    const mimeType = attachment.content_type;
-    return mimeType?.startsWith("audio/") || mimeType?.startsWith("video/");
-  });
+  const audioVideoAttachments = message.attachments?.filter(attachment => 
+    isValidAudioVideoFile(attachment.content_type)
+  );
 
   // Check for Google Drive URLs in message content
-  const googleDriveUrls = extractGoogleDriveUrls(message.content || "");
+  const { googleDriveUrls } = extractMediaInfo(message.content || "");
 
   if ((!audioVideoAttachments || audioVideoAttachments.length === 0) && googleDriveUrls.length === 0) {
     return replyToInteraction(
@@ -224,18 +228,20 @@ async function processDiscordTranscription(
     options: TranscriptionOptions;
   }
 ) {
+  const adapter = createPlatformAdapter("discord", {
+    channelId: interaction.channel?.id || "",
+    interaction,
+  });
+
   try {
     // Handle Google Drive URL
     if (params.url) {
-      const googleDriveUrls = extractGoogleDriveUrls(params.url);
+      const { googleDriveUrls } = extractMediaInfo(params.url);
 
       if (googleDriveUrls.length > 0) {
         await processGoogleDriveTranscription(interaction, googleDriveUrls[0], params.options);
       } else {
-        await editInteractionReply(
-          interaction.token,
-          "❌ 有効なGoogle DriveのURLが見つかりません。"
-        );
+        await adapter.sendErrorMessage("有効なGoogle DriveのURLが見つかりません。");
       }
       return;
     }
@@ -246,10 +252,7 @@ async function processDiscordTranscription(
     }
   } catch (error) {
     console.error("Discord transcription error:", error);
-    await editInteractionReply(
-      interaction.token,
-      `❌ エラーが発生しました: ${error instanceof Error ? error.message : "Unknown error"}`
-    );
+    await adapter.sendErrorMessage(error instanceof Error ? error.message : "Unknown error");
   }
 }
 
@@ -260,57 +263,41 @@ async function processGoogleDriveTranscription(
   options: TranscriptionOptions
 ) {
   const channelId = interaction.channel?.id || "";
+  const adapter = createPlatformAdapter("discord", {
+    channelId,
+    interaction,
+  });
 
   try {
-    // Create temporary file path
-    const tempDir = await Deno.makeTempDir();
-    const tempPath = `${tempDir}/gdrive_${Date.now()}.tmp`;
-
-    // Download and get metadata
-    const result = await downloadGoogleDriveFile(url, tempPath);
-    
-    // Skip if file was not downloaded (non-media file)
-    if (!result) {
-      // Clean up temp directory
-      await Deno.remove(tempDir).catch(() => {});
-      return;  // Silently skip non-media files
-    }
-    
-    const { filename, mimeType } = result;
-
-    // Update status
-    await editInteractionReply(
-      interaction.token,
-      `🎵 Google Driveファイル "${filename}" を文字起こし中...`
-    );
-
-    // Transcribe
-    const fileURL = `file://${tempPath}`;
-
-    await transcribeAudioFile({
-      fileURL,
-      fileType: mimeType,
-      duration: 0,
+    const result = await processGoogleDriveFile(url, {
       channelId,
       timestamp: interaction.id,
       userId: interaction.member?.user?.id || interaction.user?.id || "",
-      options,
-      filename,
-      isGoogleDrive: true,
-      tempPath,
+      transcriptionOptions: options,
       platform: "discord",
     });
 
-    // Final success message
-    await editInteractionReply(
-      interaction.token,
-      `✅ "${filename}" の文字起こしが完了しました！`
-    );
+    if (!result.success) {
+      if (result.error === "File is not a media file") {
+        return; // Silently skip non-media files
+      }
+      await adapter.sendErrorMessage(`Google Driveファイルの処理中にエラーが発生しました: ${result.error}`);
+      return;
+    }
+
+    if (result.filename) {
+      // Update status
+      await adapter.sendStatusMessage(
+        adapter.formatProcessingMessage(`Google Driveファイル "${result.filename}"`, options)
+      );
+
+      // Final success message
+      await adapter.sendSuccessMessage(result.filename);
+    }
   } catch (error) {
     console.error("Google Drive processing error:", error);
-    await editInteractionReply(
-      interaction.token,
-      `❌ Google Driveファイルの処理中にエラーが発生しました: ${error instanceof Error ? error.message : "Unknown error"}`
+    await adapter.sendErrorMessage(
+      `Google Driveファイルの処理中にエラーが発生しました: ${error instanceof Error ? error.message : "Unknown error"}`
     );
   }
 }
@@ -322,6 +309,10 @@ async function processDiscordAttachment(
   options: TranscriptionOptions
 ) {
   const channelId = interaction.channel?.id || "";
+  const adapter = createPlatformAdapter("discord", {
+    channelId,
+    interaction,
+  });
 
   try {
     // Download the file
@@ -336,9 +327,8 @@ async function processDiscordAttachment(
     await Deno.writeFile(tempPath, fileData);
 
     // Update status
-    await editInteractionReply(
-      interaction.token,
-      `🎵 "${attachment.filename}" を文字起こし中...`
+    await adapter.sendStatusMessage(
+      adapter.formatProcessingMessage(attachment.filename, options)
     );
 
     // Transcribe
@@ -362,15 +352,11 @@ async function processDiscordAttachment(
     await Deno.remove(tempDir).catch(() => {});
 
     // Final success message
-    await editInteractionReply(
-      interaction.token,
-      `✅ "${attachment.filename}" の文字起こしが完了しました！`
-    );
+    await adapter.sendSuccessMessage(attachment.filename);
   } catch (error) {
     console.error("Discord attachment processing error:", error);
-    await editInteractionReply(
-      interaction.token,
-      `❌ ファイル処理中にエラーが発生しました: ${error instanceof Error ? error.message : "Unknown error"}`
+    await adapter.sendErrorMessage(
+      error instanceof Error ? error.message : "Unknown error"
     );
   }
 }
