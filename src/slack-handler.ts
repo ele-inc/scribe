@@ -4,11 +4,13 @@
  */
 
 import { SlackEvent } from "./types.ts";
-import { parseTranscriptionOptions, extractGoogleDriveUrls } from "./utils.ts";
-import { sendSlackMessage } from "./slack.ts";
-import { transcribeAudioFile } from "./scribe.ts";
-import { downloadGoogleDriveFile } from "./googledrive.ts";
+import { parseTranscriptionOptions } from "./utils.ts";
 import { textResponse, okResponse, badRequest } from "./http-utils.ts";
+import { 
+  extractMediaInfo
+} from "./file-processor.ts";
+import { createPlatformAdapter } from "./platform-adapter.ts";
+import { TranscriptionProcessor, FileAttachment } from "./transcription-processor.ts";
 
 // Set to track processed events (with size limit to prevent memory leak)
 const processedEvents = new Set<string>();
@@ -39,137 +41,72 @@ export async function handleAppMention(event: SlackEvent) {
   console.log("Parsed options:", options);
 
   // Check for Google Drive URLs in the message
-  const googleDriveUrls = extractGoogleDriveUrls(event.text || "");
+  const { googleDriveUrls } = extractMediaInfo(event.text || "");
 
   // Check if the mention includes files or Google Drive URLs
   if ((!event.files || event.files.length === 0) && googleDriveUrls.length === 0) {
-    const usageMessage = `📝 *使い方*\n\n` +
-      `音声または動画ファイルをアップロードしてメンションするか、\n` +
-      `Google Driveのリンクを含めてメンションしてください。\n\n` +
-      `*オプション:*\n` +
-      `• \`--no-diarize\`: 話者識別を無効化\n` +
-      `• \`--no-timestamp\`: タイムスタンプを非表示\n` +
-      `• \`--no-audio-events\`: 音声イベント（拍手、音楽など）のタグを無効化\n` +
-      `• \`--num-speakers <数>\`: 話者数を指定（デフォルト: 2）\n` +
-      `• \`--speaker-names "<名前1>,<名前2>"\`: 話者名を指定（AIが自動判定）\n\n` +
-      `*使用例:*\n` +
-      `@文字起こしKUN --no-timestamp --num-speakers 3\n` +
-      `@文字起こしKUN --speaker-names "田中,山田"\n` +
-      `@文字起こしKUN https://drive.google.com/file/d/xxxxx/view`;
-
-    await sendSlackMessage(
-      event.channel,
-      usageMessage,
-      event.ts,
-    );
+    const adapter = createPlatformAdapter("slack", {
+      channelId: event.channel,
+      threadTimestamp: event.ts,
+    });
+    await adapter.sendUsageMessage();
     return;
   }
 
+  // Create adapter and processor
+  const adapter = createPlatformAdapter("slack", {
+    channelId: event.channel,
+    threadTimestamp: event.ts,
+  });
+
+  const processor = new TranscriptionProcessor(adapter, {
+    channelId: event.channel,
+    timestamp: event.ts,
+    userId: event.user,
+    platform: "slack",
+  });
+
   // Process Google Drive URLs first
-  for (const driveUrl of googleDriveUrls) {
-        // Create temporary file path
-        const tempDir = await Deno.makeTempDir();
-        const tempPath = `${tempDir}/gdrive_${Date.now()}.tmp`;
-
-        // Download and get metadata
-        const result = await downloadGoogleDriveFile(driveUrl, tempPath);
-
-        // Skip if file was not downloaded (non-media file)
-        if (!result) {
-          continue;  // Silently skip non-media files
-        }
-
-        const { filename, mimeType } = result;
-
-        // Reply with file info including options
-        const optionInfo = [];
-        if (!options.diarize) optionInfo.push("話者識別OFF");
-        if (!options.showTimestamp) optionInfo.push("タイムスタンプOFF");
-        if (!options.tagAudioEvents) optionInfo.push("音声イベントOFF");
-        if (options.diarize && options.numSpeakers && options.numSpeakers !== 2) {
-          optionInfo.push(`話者数: ${options.numSpeakers}`);
-        }
-        if (options.speakerNames && options.speakerNames.length > 0) {
-          optionInfo.push(`話者名: ${options.speakerNames.join(", ")}`);
-        }
-
-        const optionText = optionInfo.length > 0
-          ? ` (${optionInfo.join(", ")})`
-          : "";
-
-        await sendSlackMessage(
-          event.channel,
-          `Google Driveファイル "${filename}" を受信しました。文字起こし中${optionText}...`,
-          event.ts,
-        );
-
-        // Create file URL for local temp file
-        const fileURL = `file://${tempPath}`;
-
-        // Run transcription in the background
-        // Process transcription asynchronously without blocking response
-        transcribeAudioFile({
-            fileURL,
-            fileType: mimeType,
-            duration: 0, // Duration not available from Google Drive
-            channelId: event.channel,
-            timestamp: event.ts,
-            userId: event.user,
-            options,
-            filename,
-            isGoogleDrive: true,
-            tempPath, // Pass temp path for cleanup
-          }).catch(console.error);
+  if (googleDriveUrls.length > 0) {
+    // Process asynchronously without blocking response
+    processor.processTextInput(event.text || "", options)
+      .catch(console.error)
+      .finally(() => processor.cleanup());
   }
 
-    // Process regular Slack files
-    if (event.files && event.files.length > 0) {
-      for (const file of event.files) {
-        // Check if file is not audio or video
-        if (!file.mimetype || (!file.mimetype.startsWith("audio/") && !file.mimetype.startsWith("video/"))) {
-          await sendSlackMessage(
-            event.channel,
-            `ファイル "${file.name}" は音声または動画ファイルではありません。`,
-            event.ts,
-          );
-          continue;
-        }
+  // Process regular Slack files
+  if (event.files && event.files.length > 0) {
+    const attachments: FileAttachment[] = event.files.map(file => ({
+      url: file.url_private || "",
+      filename: file.name,
+      mimeType: file.mimetype,
+      duration: file.duration,
+    }));
 
-        // Reply with file info including options
-        const optionInfo = [];
-        if (!options.diarize) optionInfo.push("話者識別OFF");
-        if (!options.showTimestamp) optionInfo.push("タイムスタンプOFF");
-        if (!options.tagAudioEvents) optionInfo.push("音声イベントOFF");
-        if (options.diarize && options.numSpeakers && options.numSpeakers !== 2) {
-          optionInfo.push(`話者数: ${options.numSpeakers}`);
-        }
-        if (options.speakerNames && options.speakerNames.length > 0) {
-          optionInfo.push(`話者名: ${options.speakerNames.join(", ")}`);
-        }
+    // If processor wasn't created for Google Drive URLs, create it now
+    if (googleDriveUrls.length === 0) {
+      const adapter = createPlatformAdapter("slack", {
+        channelId: event.channel,
+        threadTimestamp: event.ts,
+      });
 
-        const optionText = optionInfo.length > 0
-          ? ` (${optionInfo.join(", ")})`
-          : "";
+      const processor = new TranscriptionProcessor(adapter, {
+        channelId: event.channel,
+        timestamp: event.ts,
+        userId: event.user,
+        platform: "slack",
+      });
 
-        await sendSlackMessage(
-          event.channel,
-          `ファイル "${file.name}" を受信しました。文字起こし中${optionText}...`,
-          event.ts,
-        );
-
-        // Process transcription asynchronously without blocking response
-        transcribeAudioFile({
-          fileURL: file.url_private || "",
-          fileType: file.mimetype || "",
-          duration: file.duration || 0,
-          channelId: event.channel,
-          timestamp: event.ts,
-          userId: event.user,
-          options,
-          filename: file.name,
-        }).catch(console.error);
-      }
+      // Process asynchronously without blocking response
+      processor.processAttachments(attachments, options)
+        .catch(console.error)
+        .finally(() => processor.cleanup());
+    } else {
+      // Use existing processor
+      processor.processAttachments(attachments, options)
+        .catch(console.error);
     }
+  }
 }
 
 /**
