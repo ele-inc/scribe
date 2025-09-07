@@ -163,7 +163,7 @@ export const convertVideoToAudio = async (
   try {
     // 元のファイル名を保持してmp3拡張子に変更
     const originalBaseName = inputPath.substring(inputPath.lastIndexOf('/') + 1, inputPath.lastIndexOf('.'));
-    const outputPath = `${outputDir}/${originalBaseName}.mp3`;
+    const outputPath = `${outputDir}/${originalBaseName}.wav`;
 
     console.log(`Converting video to audio: ${inputPath} -> ${outputPath}`);
 
@@ -172,9 +172,10 @@ export const convertVideoToAudio = async (
       args: [
         "-i", inputPath,
         "-vn",
-        "-acodec", "mp3",
-        "-ab", "128k",
-        "-ar", "16000",
+        "-ac", "1",                 // mono
+        "-ar", "16000",             // 16 kHz
+        "-af", "loudnorm=I=-23:TP=-2:LRA=11,highpass=f=60",
+        "-c:a", "pcm_s16le",        // 16-bit PCM, little-endian
         "-y",
         outputPath
       ],
