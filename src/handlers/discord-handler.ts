@@ -344,8 +344,7 @@ async function processDiscordAttachment(
       platform: "discord",
     });
 
-    // Final success message
-    await adapter.sendSuccessMessage(attachment.filename);
+    // Success message is sent from scribe.ts after upload
   } catch (error) {
     console.error("Discord attachment processing error:", error);
     await adapter.sendErrorMessage(

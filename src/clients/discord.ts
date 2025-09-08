@@ -106,6 +106,7 @@ export async function sendDiscordMessage(
 export async function uploadTranscriptToDiscord(
   transcript: string,
   channelId: string,
+  message?: string,
 ): Promise<void> {
   const encoder = new TextEncoder();
   const transcriptBytes = encoder.encode(transcript);
@@ -116,7 +117,7 @@ export async function uploadTranscriptToDiscord(
 
   await sendDiscordMessage(
     channelId,
-    "✅ 文字起こしが完了しました！",
+    message || "✅ 文字起こしが完了しました！",
     undefined,
     [{
       name: transcriptFilename,

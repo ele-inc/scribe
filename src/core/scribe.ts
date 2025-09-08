@@ -20,6 +20,27 @@ import {
 import { transcribeCore } from "./transcribe-core.ts";
 import { TempFileManager } from "../services/temp-file-manager.ts";
 
+/**
+ * Upload transcript to the appropriate platform
+ */
+async function uploadTranscript(
+  transcript: string,
+  channelId: string,
+  timestamp: string,
+  filename: string | undefined,
+  platform: "slack" | "discord"
+): Promise<void> {
+  const message = filename 
+    ? `✅ "${filename}" の文字起こしが完了しました！`
+    : undefined;
+    
+  if (platform === "slack") {
+    await uploadTranscriptToSlack(transcript, channelId, timestamp, message);
+  } else if (platform === "discord") {
+    await uploadTranscriptToDiscord(transcript, channelId, message);
+  }
+}
+
 
 export async function transcribeAudioFile({
   fileURL,
@@ -103,11 +124,7 @@ export async function transcribeAudioFile({
         ? createTranscriptionHeader(filename) + transcript
         : transcript;
 
-      if (platform === "slack") {
-        await uploadTranscriptToSlack(finalTranscript, channelId, timestamp);
-      } else if (platform === "discord") {
-        await uploadTranscriptToDiscord(finalTranscript, channelId);
-      }
+      await uploadTranscript(finalTranscript, channelId, timestamp, filename, platform);
     } else {
       console.log("No transcript generated, sending error message");
       if (platform === "slack") {

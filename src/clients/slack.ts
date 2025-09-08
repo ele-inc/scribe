@@ -25,6 +25,7 @@ export async function uploadTranscriptToSlack(
   transcript: string,
   channelId: string,
   timestamp: string,
+  message?: string,
 ) {
   console.log("Uploading transcript to Slack...");
 
@@ -78,7 +79,9 @@ export async function uploadTranscriptToSlack(
     }]),
   );
   formData2.append("channel_id", channelId);
-  formData2.append("initial_comment", "文字起こしが完了しました！📝");
+  if (message) {
+    formData2.append("initial_comment", message);
+  }
   formData2.append("thread_ts", timestamp);
 
   const completeResponse = await fetch(

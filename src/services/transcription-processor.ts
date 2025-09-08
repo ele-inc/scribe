@@ -73,7 +73,7 @@ export class TranscriptionProcessor {
         await this.adapter.sendStatusMessage(
           this.adapter.formatProcessingMessage(result.filename, options)
         );
-        await this.adapter.sendSuccessMessage(result.filename);
+        // Success message is sent from scribe.ts after upload
       }
     } catch (error) {
       console.error("Cloud file processing error:", error);
@@ -142,8 +142,7 @@ export class TranscriptionProcessor {
         platform: this.context.platform,
       });
 
-      // Success message
-      await this.adapter.sendSuccessMessage(attachment.filename);
+      // Success message is sent from scribe.ts after upload
     } catch (error) {
       console.error(`${this.context.platform} attachment processing error:`, error);
       await this.adapter.sendErrorMessage(
