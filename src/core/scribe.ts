@@ -7,18 +7,18 @@ import {
   createTranscriptionHeader,
   convertVideoToAudio,
   isVideoFile,
-} from "./utils.ts";
+} from "../utils/utils.ts";
 import {
   sendSlackMessage,
   uploadTranscriptToSlack,
   downloadSlackFileToPath,
-} from "./slack.ts";
+} from "../clients/slack.ts";
 import {
   sendDiscordMessage,
   uploadTranscriptToDiscord,
-} from "./discord.ts";
+} from "../clients/discord.ts";
 import { transcribeCore } from "./transcribe-core.ts";
-import { TempFileManager } from "./temp-file-manager.ts";
+import { TempFileManager } from "../services/temp-file-manager.ts";
 
 
 export async function transcribeAudioFile({

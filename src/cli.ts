@@ -1,9 +1,9 @@
 #!/usr/bin/env -S deno run --allow-all
 
 import "https://deno.land/std@0.224.0/dotenv/load.ts";
-import { transcribeFile } from "./transcribe-core.ts";
-import { TranscriptionOptions } from "./types.ts";
-import { createTranscriptionHeader } from "./utils.ts";
+import { transcribeFile } from "./core/transcribe-core.ts";
+import { TranscriptionOptions } from "./core/types.ts";
+import { createTranscriptionHeader } from "./utils/utils.ts";
 
 interface CliOptions extends TranscriptionOptions {
   output?: string;

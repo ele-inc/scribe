@@ -1,7 +1,7 @@
-import { handleDiscordInteraction } from "./discord-handler.ts";
-import { handleSlackEvents } from "./slack-handler.ts";
-import { config } from "./config.ts";
-import { textResponse, methodNotAllowed } from "./http-utils.ts";
+import { handleDiscordInteraction } from "./handlers/discord-handler.ts";
+import { handleSlackEvents } from "./handlers/slack-handler.ts";
+import { config } from "./core/config.ts";
+import { textResponse, methodNotAllowed } from "./utils/http-utils.ts";
 
 console.log(`Function "elevenlabs-scribe-bot" up and running!`);
 

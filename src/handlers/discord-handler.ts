@@ -7,7 +7,7 @@ import {
   APIApplicationCommandInteractionDataAttachmentOption,
   APIAttachment,
 } from "npm:discord-api-types@0.37.100/v10";
-import { TranscriptionOptions } from "./types.ts";
+import { TranscriptionOptions } from "../core/types.ts";
 
 // EdgeRuntime removed for Cloud Run compatibility
 import {
@@ -17,15 +17,15 @@ import {
   editInteractionReply,
   downloadDiscordFile,
   getDiscordFileInfo,
-} from "./discord.ts";
-import { parseTranscriptionOptions } from "./utils.ts";
+} from "../clients/discord.ts";
+import { parseTranscriptionOptions } from "../utils/utils.ts";
 import { 
   extractMediaInfo, 
   isValidAudioVideoFile
-} from "./file-processor.ts";
-import { createPlatformAdapter } from "./platform-adapter.ts";
-import { TranscriptionProcessor } from "./transcription-processor.ts";
-import { TempFileManager } from "./temp-file-manager.ts";
+} from "../services/file-processor.ts";
+import { createPlatformAdapter } from "../adapters/platform-adapter.ts";
+import { TranscriptionProcessor } from "../services/transcription-processor.ts";
+import { TempFileManager } from "../services/temp-file-manager.ts";
 
 // Handle Discord interactions
 export async function handleDiscordInteraction(request: Request): Promise<Response> {
@@ -326,7 +326,7 @@ async function processDiscordAttachment(
     );
 
     // Import transcribeAudioFile locally to avoid circular dependency
-    const { transcribeAudioFile } = await import("./scribe.ts");
+    const { transcribeAudioFile } = await import("../core/scribe.ts");
 
     // Transcribe
     const fileURL = `file://${tempPath}`;

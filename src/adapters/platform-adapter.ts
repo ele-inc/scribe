@@ -1,7 +1,7 @@
-import { TranscriptionOptions } from "./types.ts";
-import { formatOptionsText } from "./file-processor.ts";
-import { sendSlackMessage } from "./slack.ts";
-import { editInteractionReply } from "./discord.ts";
+import { TranscriptionOptions } from "../core/types.ts";
+import { formatOptionsText } from "../services/file-processor.ts";
+import { sendSlackMessage } from "../clients/slack.ts";
+import { editInteractionReply } from "../clients/discord.ts";
 import { APIInteraction } from "npm:discord-api-types@0.37.100/v10";
 
 export interface PlatformAdapter {

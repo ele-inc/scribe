@@ -3,14 +3,14 @@
  * Extracted from index.ts for better separation of concerns
  */
 
-import { SlackEvent } from "./types.ts";
-import { parseTranscriptionOptions } from "./utils.ts";
-import { textResponse, okResponse, badRequest } from "./http-utils.ts";
+import { SlackEvent } from "../core/types.ts";
+import { parseTranscriptionOptions } from "../utils/utils.ts";
+import { textResponse, okResponse, badRequest } from "../utils/http-utils.ts";
 import { 
   extractMediaInfo
-} from "./file-processor.ts";
-import { createPlatformAdapter } from "./platform-adapter.ts";
-import { TranscriptionProcessor, FileAttachment } from "./transcription-processor.ts";
+} from "../services/file-processor.ts";
+import { createPlatformAdapter } from "../adapters/platform-adapter.ts";
+import { TranscriptionProcessor, FileAttachment } from "../services/transcription-processor.ts";
 
 // Set to track processed events (with size limit to prevent memory leak)
 const processedEvents = new Set<string>();
