@@ -3,13 +3,13 @@
  * Unifies the transcription logic for both Discord and Slack
  */
 
-import { TranscriptionOptions } from "./types.ts";
-import { transcribeAudioFile } from "./scribe.ts";
+import { TranscriptionOptions } from "../core/types.ts";
+import { transcribeAudioFile } from "../core/scribe.ts";
 import { TempFileManager } from "./temp-file-manager.ts";
-import { processGoogleDriveFile, isValidAudioVideoFile, extractMediaInfo } from "./file-processor.ts";
-import { PlatformAdapter } from "./platform-adapter.ts";
-import { downloadSlackFileToPath } from "./slack.ts";
-import { getFileExtensionFromMime } from "./utils.ts";
+import { processCloudFile, isValidAudioVideoFile, extractMediaInfo } from "./file-processor.ts";
+import { PlatformAdapter } from "../adapters/platform-adapter.ts";
+import { downloadSlackFileToPath } from "../clients/slack.ts";
+import { getFileExtensionFromMime } from "../utils/utils.ts";
 
 export interface FileAttachment {
   url: string;
@@ -34,26 +34,26 @@ export class TranscriptionProcessor {
   ) {}
 
   /**
-   * Process text input for Google Drive URLs
+   * Process text input for cloud service URLs
    */
   async processTextInput(text: string, options: TranscriptionOptions): Promise<void> {
-    const { googleDriveUrls } = extractMediaInfo(text);
+    const { cloudUrls } = extractMediaInfo(text);
 
-    if (googleDriveUrls.length === 0) {
+    if (cloudUrls.length === 0) {
       return;
     }
 
-    for (const url of googleDriveUrls) {
-      await this.processGoogleDriveUrl(url, options);
+    for (const url of cloudUrls) {
+      await this.processCloudUrl(url, options);
     }
   }
 
   /**
-   * Process a Google Drive URL
+   * Process a cloud service URL (Google Drive, Dropbox, etc.)
    */
-  async processGoogleDriveUrl(url: string, options: TranscriptionOptions): Promise<void> {
+  async processCloudUrl(url: string, options: TranscriptionOptions): Promise<void> {
     try {
-      const result = await processGoogleDriveFile(url, {
+      const result = await processCloudFile(url, {
         channelId: this.context.channelId,
         timestamp: this.context.timestamp,
         userId: this.context.userId,
@@ -76,11 +76,16 @@ export class TranscriptionProcessor {
         await this.adapter.sendSuccessMessage(result.filename);
       }
     } catch (error) {
-      console.error("Google Drive processing error:", error);
+      console.error("Cloud file processing error:", error);
       await this.adapter.sendErrorMessage(
         error instanceof Error ? error.message : "Unknown error"
       );
     }
+  }
+
+  // Keep backward compatibility
+  async processGoogleDriveUrl(url: string, options: TranscriptionOptions): Promise<void> {
+    return await this.processCloudUrl(url, options);
   }
 
   /**

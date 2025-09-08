@@ -1,7 +1,6 @@
-import { TranscriptionOptions } from "./types.ts";
-import { downloadGoogleDriveFile } from "./googledrive.ts";
-import { transcribeAudioFile } from "./scribe.ts";
-import { extractGoogleDriveUrls } from "./utils.ts";
+import { TranscriptionOptions } from "../core/types.ts";
+import { transcribeAudioFile } from "../core/scribe.ts";
+import { cloudServiceManager } from "./cloud-service-manager.ts";
 
 export interface FileInfo {
   filename: string;
@@ -42,7 +41,7 @@ export function isValidAudioVideoFile(mimeType: string | undefined): boolean {
   return mimeType.startsWith("audio/") || mimeType.startsWith("video/");
 }
 
-export async function processGoogleDriveFile(
+export async function processCloudFile(
   url: string,
   options: {
     channelId: string;
@@ -53,49 +52,62 @@ export async function processGoogleDriveFile(
   }
 ): Promise<ProcessingResult> {
   try {
-    const tempDir = await Deno.makeTempDir();
-    const tempPath = `${tempDir}/gdrive_${Date.now()}.tmp`;
-
-    const result = await downloadGoogleDriveFile(url, tempPath);
+    const result = await cloudServiceManager.downloadFromUrl(url);
     
-    if (!result) {
-      await Deno.remove(tempDir).catch(() => {});
-      return { success: false, error: "File is not a media file" };
+    if (!result.success) {
+      return { success: false, error: result.error };
     }
     
-    const { filename, mimeType } = result;
+    if (!result.metadata || !result.tempPath) {
+      return { success: false, error: "Failed to get file metadata" };
+    }
 
     await transcribeAudioFile({
-      fileURL: `file://${tempPath}`,
-      fileType: mimeType,
+      fileURL: `file://${result.tempPath}`,
+      fileType: result.metadata.mimeType,
       duration: 0,
       channelId: options.channelId,
       timestamp: options.timestamp,
       userId: options.userId,
       options: options.transcriptionOptions,
-      filename,
-      isGoogleDrive: true,
-      tempPath,
+      filename: result.metadata.filename,
+      isGoogleDrive: true, // TODO: Update to isCloudFile
+      tempPath: result.tempPath,
       platform: options.platform,
     });
 
-    return { success: true, filename };
+    return { success: true, filename: result.metadata.filename };
   } catch (error) {
-    console.error("Google Drive processing error:", error);
+    console.error("Cloud file processing error:", error);
     return { 
       success: false, 
       error: error instanceof Error ? error.message : "Unknown error" 
     };
+  } finally {
+    // Cleanup is handled by cloudServiceManager
+    await cloudServiceManager.cleanup();
   }
 }
 
+// Keep backward compatibility
+export const processGoogleDriveFile = processCloudFile;
+
 export function extractMediaInfo(text: string): {
-  googleDriveUrls: string[];
+  cloudUrls: string[];
+  googleDriveUrls: string[]; // For backward compatibility
   hasUrls: boolean;
 } {
-  const googleDriveUrls = extractGoogleDriveUrls(text || "");
+  const cloudServices = cloudServiceManager.extractCloudUrls(text || "");
+  const cloudUrls = cloudServices.map(cs => cs.url);
+  
+  // Filter Google Drive URLs for backward compatibility
+  const googleDriveUrls = cloudServices
+    .filter(cs => cs.service.name === "Google Drive")
+    .map(cs => cs.url);
+  
   return {
-    googleDriveUrls,
-    hasUrls: googleDriveUrls.length > 0
+    cloudUrls,
+    googleDriveUrls, // Keep for backward compatibility
+    hasUrls: cloudUrls.length > 0
   };
 }

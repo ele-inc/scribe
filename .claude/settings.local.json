@@ -16,7 +16,9 @@
       "Bash(git push:*)",
       "Bash(gh pr create:*)",
       "Bash(deno check:*)",
-      "Bash(deno lint:*)"
+      "Bash(deno lint:*)",
+      "Bash(mv:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

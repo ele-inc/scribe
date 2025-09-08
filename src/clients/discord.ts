@@ -3,7 +3,7 @@ import {
   APIEmbed,
 } from "npm:discord-api-types@0.37.100/v10";
 import nacl from "npm:tweetnacl@1.0.3";
-import { config } from "./config.ts";
+import { config } from "../core/config.ts";
 
 // Helper function to convert hex string to Uint8Array
 function hexToUint8Array(hex: string): Uint8Array {

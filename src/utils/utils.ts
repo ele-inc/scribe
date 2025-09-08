@@ -1,5 +1,5 @@
-import { TranscriptionOptions, WordItem, Sentence, SpeakerUtterance } from "./types.ts";
-import { isGoogleDriveUrl } from "./googledrive.ts";
+import { TranscriptionOptions, WordItem, Sentence, SpeakerUtterance } from "../core/types.ts";
+import { isGoogleDriveUrl } from "../clients/googledrive.ts";
 
 export const parseTranscriptionOptions = (text: string = ""): TranscriptionOptions => {
   const diarize = !text.includes("--no-diarize");

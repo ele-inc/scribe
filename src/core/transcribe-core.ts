@@ -9,8 +9,8 @@ import {
   groupBySpeaker,
   isVideoFile,
   convertVideoToAudio,
-} from "./utils.ts";
-import { identifySpeakers, replaceSpeakerLabels } from "./openai-client.ts";
+} from "../utils/utils.ts";
+import { identifySpeakers, replaceSpeakerLabels } from "../clients/openai-client.ts";
 import { config } from "./config.ts";
 
 const elevenlabs = new ElevenLabsClient({
