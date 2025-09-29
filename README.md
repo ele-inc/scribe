@@ -23,6 +23,7 @@ You can customize the transcription by adding options when mentioning the bot:
 - `--speaker-names "<name1>,<name2>"` - Specify speaker names (AI will automatically identify who is who)
 
 Example:
+
 ```
 @bot transcribe this file --no-timestamp --no-diarize
 @bot transcribe this file --num-speakers 3
@@ -30,7 +31,8 @@ Example:
 @bot transcribe this file --speaker-names "田中,山田"
 ```
 
-**Note:** 
+**Note:**
+
 - The `--num-speakers` option only works when speaker diarization is enabled (default). If you use `--no-diarize`, the num-speakers setting will be ignored.
 - The `--speaker-names` option uses OpenAI to automatically identify which speaker is which based on the conversation content. You need to set `OPENAI_API_KEY` in your environment variables for this feature to work.
 
@@ -152,12 +154,14 @@ The Cloud Run URL can be found in the output of the `gcloud run deploy` command 
 ### Slack
 
 #### With file uploads:
+
 1. Upload an audio or video file to a Slack channel
 2. Mention the bot in the same message or as a reply
 3. (Optional) Add transcription options like `--no-timestamp` or `--no-diarize`
 4. The bot will process the file and reply with a transcript text file
 
 #### With Google Drive links:
+
 1. Share a Google Drive video/audio file link in a message
 2. Mention the bot in the same message with the link
 3. (Optional) Add transcription options
@@ -168,18 +172,21 @@ Example: `@bot https://drive.google.com/file/d/xxxxx/view --num-speakers 3`
 ### Discord
 
 #### Using slash commands:
+
 1. Use the `/transcribe` command in any channel
 2. Attach an audio or video file to the command
 3. (Optional) Add transcription options as command parameters
 4. The bot will reply with the transcript as a text file
 
 #### With file uploads:
+
 1. Upload an audio or video file to a Discord channel
 2. Reply to the message with `/transcribe` command
 3. (Optional) Add transcription options
 4. The bot will process and return the transcript
 
 #### With Google Drive links:
+
 1. Use `/transcribe url:<drive_link>` command
 2. (Optional) Add transcription options as parameters
 3. The bot will download and transcribe the file
@@ -196,18 +203,21 @@ Example: `/transcribe url:https://drive.google.com/file/d/xxxxx/view speakers:3`
 The transcript will be formatted based on your options:
 
 **With speaker diarization (default):**
+
 ```
 [0:00] speaker_0: こんにちは、今日の会議を始めます。
 [0:05] speaker_1: よろしくお願いします。
 ```
 
 **Without speaker diarization:**
+
 ```
 [0:00] こんにちは、今日の会議を始めます。
 [0:05] よろしくお願いします。
 ```
 
 **Without timestamps:**
+
 ```
 speaker_0: こんにちは、今日の会議を始めます。
 speaker_1: よろしくお願いします。
