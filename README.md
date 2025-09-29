@@ -212,3 +212,104 @@ The transcript will be formatted based on your options:
 speaker_0: こんにちは、今日の会議を始めます。
 speaker_1: よろしくお願いします。
 ```
+
+## Slackでの文字起こしフロー
+
+Slackでのファイル/リンクから文字起こしが行われるまでの全体像です。内部の主要ポイント（どのファイル/関数が関与するか）も併記しています。
+
+### 全体シーケンス (Mermaid)
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant S as Slack
+  participant E as Cloud Run / Slack Events (POST /slack/events)
+  participant H as Slack Handler (src/handlers/slack-handler.ts)
+  participant P as TranscriptionProcessor (src/services/transcription-processor.ts)
+  participant C as Slack Client (src/clients/slack.ts)
+  participant SC as Scribe (src/core/scribe.ts)
+  participant EL as ElevenLabs Scribe API
+  participant OA as OpenAI (gpt-4o)
+  participant SF as Slack Files API
+
+  U->>S: @bot + ファイル or Google Driveリンク + オプション
+  S->>E: event_callback(app_mention)
+  E->>H: handleSlackEvents() / handleAppMention()
+  H->>P: processTextInput()/processAttachments()(オプション解析済み)
+
+  alt Cloud URL（Google Driveなど）
+    P->>P: processCloudUrl() -> processCloudFile()
+    P->>SC: transcribeAudioFile(isGoogleDrive=true)
+  else Slackに直接アップされたファイル
+    P->>C: downloadSlackFileToPath(url_private)
+    C->>SF: GET file (Bearer bot token)
+    P->>SC: transcribeAudioFile()
+  end
+
+  SC->>EL: speechToText.convert({ diarize, num_speakers, language_code: "ja" })
+  EL-->>SC: words/timestamps/text（話者ラベル: speaker_0, speaker_1, ...）
+
+  opt diarize有効 かつ --speaker-names指定
+    SC->>OA: identifySpeakers(transcript, names)
+    OA-->>SC: {"speaker_0":"田中", "speaker_1":"山田", ...}
+    SC->>SC: replaceSpeakerLabels()
+  end
+
+  SC->>SF: files.getUploadURLExternal → upload → files.completeUploadExternal
+  SC-->>S: chat.postMessage（完了メッセージ）
+```
+
+### 処理フロー (Mermaid)
+
+```mermaid
+flowchart TD
+  A[Slack app_mention + オプション] --> B{ファイル種別}
+  B -- Cloud URL --> C[processCloudFile()]
+  B -- Slack File --> D[downloadSlackFileToPath()]
+  C --> E[transcribeCore via ElevenLabs]
+  D --> E
+  E --> F{diarize有効?}
+  F -- はい --> G[wordsを話者ごとに集約 (speaker_N)]
+  F -- いいえ --> H[文のみ整形（timestampはオプション）]
+  G --> I{--speaker-names指定?}
+  I -- はい --> J[gpt-4oでspeaker_N→候補名を推定]
+  J --> K[replaceSpeakerLabels()]
+  I -- いいえ --> K
+  H --> K
+  K --> L[Slackスレッドにアップロード/完了メッセージ]
+```
+
+## 話者識別（ダイアリゼーション）の仕組みと制約
+
+- **段階1: ElevenLabsの話者分離**
+  - ElevenLabs Scribeが音声を解析し、発話をタイムスタンプ付きのトークン列に分解します。
+  - diarize有効時は、各発話に `speaker_0`, `speaker_1`, ... のようなラベルが付きます。
+  - `--num-speakers` を指定すると、モデルへのヒントとして話者数を渡します（誤った数を渡すと精度が落ちる可能性があります）。
+
+- **段階2: ラベル→人物名の推定（任意）**
+  - `--speaker-names "田中,山田"` のように候補名を与えた場合のみ実行されます。
+  - `src/clients/openai-client.ts` の `identifySpeakers()` が、文字起こし内容（語彙、一人称、呼称、文脈）から
+    `speaker_N` と候補名の対応を **gpt-4o** に推定させ、`replaceSpeakerLabels()` で置換します。
+  - これは音響的な声紋認識ではなく、あくまでテキストベースの推論です。候補名リストにない名前は使いません。
+
+### 重要な注意点（正確さの限界）
+
+- **話者名の確定は厳密ではありません。** ElevenLabsの話者分離は強力ですが、`speaker_0`→実在の人物名の割当は
+  gpt-4oによるテキスト推論のため、誤割当（入れ替わり・混在）が起こり得ます。
+- **候補名の質と数に依存します。** 候補が多すぎる／似た役割の人が多いと誤りが増えます。できるだけ必要最小限の候補に絞ると良いです。
+- **`--num-speakers` の誤指定は悪影響。** 実際より多い/少ない話者数を指定すると分離と整形の両方に影響します。
+- **完全な音声話者認識ではありません。** 声質そのものから個人を同定する処理は行っていません。
+
+### ベストプラクティス
+
+- **可能なら `--speaker-names` を指定**（2〜4名程度に絞る）し、完了後にサマリをざっと確認する。
+- 固有名詞や役職で互いを呼ぶ習慣がある会議では精度が上がりやすいです。
+- 誤りが気になる場合は、`--no-diarize` で話者ラベルを無効にして内容重視にするのも有効です。
+
+### 実装の参照先
+
+- Slackイベント受付: `src/handlers/slack-handler.ts`（`handleSlackEvents`, `handleAppMention`）
+- 共通ワークフロー: `src/services/transcription-processor.ts`（`processTextInput`, `processAttachments`）
+- 文字起こし中核: `src/core/transcribe-core.ts`（ElevenLabs呼び出し、話者ラベル整形）
+- 名前置換: `src/clients/openai-client.ts`（`identifySpeakers`, `replaceSpeakerLabels`）
+- Slackアップロード: `src/clients/slack.ts`（`uploadTranscriptToSlack`, `sendSlackMessage`）
