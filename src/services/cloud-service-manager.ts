@@ -1,10 +1,11 @@
 /**
  * Cloud service manager for handling multiple cloud storage providers
- * Currently supports Google Drive, easily extensible for Dropbox, OneDrive, etc.
+ * Currently supports Google Drive and Dropbox, easily extensible for OneDrive, Box, etc.
  */
 
 import { CloudService, CloudDownloadResult, cloudServiceRegistry } from "./cloud-service.ts";
 import { GoogleDriveAdapter } from "../adapters/google-drive-adapter.ts";
+import { DropboxAdapter } from "../adapters/dropbox-adapter.ts";
 import { TempFileManager } from "./temp-file-manager.ts";
 
 export class CloudServiceManager {
@@ -22,8 +23,10 @@ export class CloudServiceManager {
     // Register Google Drive
     cloudServiceRegistry.register(new GoogleDriveAdapter());
 
+    // Register Dropbox
+    cloudServiceRegistry.register(new DropboxAdapter());
+
     // Future services can be registered here:
-    // cloudServiceRegistry.register(new DropboxService());
     // cloudServiceRegistry.register(new OneDriveService());
     // cloudServiceRegistry.register(new BoxService());
   }
