@@ -125,32 +125,42 @@ export async function downloadDropboxFileToPath(directUrl: string, tempPath: str
   if (!resp.ok || !resp.body) {
     throw new Error(`Failed to download Dropbox file (status ${resp.status})`);
   }
-
   const contentType = (resp.headers.get("content-type") || "").toLowerCase();
-  const isMedia = contentType.startsWith("audio/") || contentType.startsWith("video/") || contentType === "application/ogg" || contentType === "application/octet-stream";
+  const disposition = resp.headers.get("content-disposition") || "";
+  const isMedia =
+    contentType.startsWith("audio/") ||
+    contentType.startsWith("video/") ||
+    contentType.includes("octet-stream") ||
+    contentType === "application/ogg" ||
+    contentType === "application/binary" ||
+    contentType === "binary/octet-stream" ||
+    contentType === "application/x-binary" ||
+    /attachment/i.test(disposition);
 
   if (!isMedia) {
     // Skip non-media files silently
     return false;
   }
 
-  // Stream to disk
+  // Stream to disk using Web Streams reader (Deno)
   const file = await Deno.open(tempPath, { write: true, create: true, truncate: true });
+  const writer = file.writable.getWriter();
   try {
-    const writer = file.writable.getWriter();
+    const body = resp.body;
+    const reader = body.getReader();
     let downloadedBytes = 0;
-    try {
-      for await (const chunk of resp.body as unknown as AsyncIterable<Uint8Array>) {
-        const buffer = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
-        await writer.write(buffer);
-        downloadedBytes += buffer.length;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        await writer.write(value);
+        downloadedBytes += value.length;
       }
-    } finally {
-      await writer.close();
     }
+    await writer.close();
     return true;
   } finally {
-    file.close();
+    try { file.close(); } catch {}
   }
 }
 
