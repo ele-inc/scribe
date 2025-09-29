@@ -23,6 +23,7 @@ You can customize the transcription by adding options when mentioning the bot:
 - `--speaker-names "<name1>,<name2>"` - Specify speaker names (AI will automatically identify who is who)
 
 Example:
+
 ```
 @bot transcribe this file --no-timestamp --no-diarize
 @bot transcribe this file --num-speakers 3
@@ -30,7 +31,8 @@ Example:
 @bot transcribe this file --speaker-names "田中,山田"
 ```
 
-**Note:** 
+**Note:**
+
 - The `--num-speakers` option only works when speaker diarization is enabled (default). If you use `--no-diarize`, the num-speakers setting will be ignored.
 - The `--speaker-names` option uses OpenAI to automatically identify which speaker is which based on the conversation content. You need to set `OPENAI_API_KEY` in your environment variables for this feature to work.
 
@@ -152,12 +154,14 @@ The Cloud Run URL can be found in the output of the `gcloud run deploy` command 
 ### Slack
 
 #### With file uploads:
+
 1. Upload an audio or video file to a Slack channel
 2. Mention the bot in the same message or as a reply
 3. (Optional) Add transcription options like `--no-timestamp` or `--no-diarize`
 4. The bot will process the file and reply with a transcript text file
 
 #### With Google Drive links:
+
 1. Share a Google Drive video/audio file link in a message
 2. Mention the bot in the same message with the link
 3. (Optional) Add transcription options
@@ -168,18 +172,21 @@ Example: `@bot https://drive.google.com/file/d/xxxxx/view --num-speakers 3`
 ### Discord
 
 #### Using slash commands:
+
 1. Use the `/transcribe` command in any channel
 2. Attach an audio or video file to the command
 3. (Optional) Add transcription options as command parameters
 4. The bot will reply with the transcript as a text file
 
 #### With file uploads:
+
 1. Upload an audio or video file to a Discord channel
 2. Reply to the message with `/transcribe` command
 3. (Optional) Add transcription options
 4. The bot will process and return the transcript
 
 #### With Google Drive links:
+
 1. Use `/transcribe url:<drive_link>` command
 2. (Optional) Add transcription options as parameters
 3. The bot will download and transcribe the file
@@ -196,19 +203,78 @@ Example: `/transcribe url:https://drive.google.com/file/d/xxxxx/view speakers:3`
 The transcript will be formatted based on your options:
 
 **With speaker diarization (default):**
+
 ```
 [0:00] speaker_0: こんにちは、今日の会議を始めます。
 [0:05] speaker_1: よろしくお願いします。
 ```
 
 **Without speaker diarization:**
+
 ```
 [0:00] こんにちは、今日の会議を始めます。
 [0:05] よろしくお願いします。
 ```
 
 **Without timestamps:**
+
 ```
 speaker_0: こんにちは、今日の会議を始めます。
 speaker_1: よろしくお願いします。
 ```
+
+## Slackでの文字起こしフロー
+
+非エンジニア向けの説明です。登場人物は「ユーザー」「Slack」「Bot」「ElevenLabs」「gpt-4o」です。
+
+### 全体シーケンス (Mermaid)
+
+```mermaid
+sequenceDiagram
+  participant U as ユーザー
+  participant S as Slack
+  participant B as Bot
+  participant EL as ElevenLabs
+  participant OA as gpt-4o
+
+  U->>S: @bot + 音声/動画ファイル or リンク + オプション
+  S->>B: メンションを通知
+  B-->>S: 受け付けた旨を返信（任意）
+
+  alt リンクが含まれる
+    B->>S: ファイルを取得
+  else Slackにファイルが直接ある
+    B->>S: ファイルを取得
+  end
+
+  B->>EL: 音声を送信（日本語、話者分離オプション など）
+  EL-->>B: 文字起こし結果（speaker_0, speaker_1 などのラベル付き）
+
+  opt --speaker-names を指定した場合
+    B->>OA: 文字起こし + 候補名を渡して「誰が誰か」を推定
+    OA-->>B: speaker_N → 名前 の対応案
+    B->>B: ラベルを人物名に置換
+  end
+
+  B-->>S: スレッドに文字起こしを投稿（テキストファイル）
+```
+
+## 話者識別（ダイアリゼーション）の仕組みと制約
+
+- **段階1: ElevenLabsの話者分離**
+  - ElevenLabs Scribeが音声を解析し、発話をタイムスタンプ付きのトークン列に分解します。
+  - diarize有効時は、各発話に `speaker_0`, `speaker_1`, ... のようなラベルが付きます。
+  - `--num-speakers` を指定すると、モデルへのヒントとして話者数を渡します（誤った数を渡すと精度が落ちる可能性があります）。
+
+- **段階2: ラベル→人物名の推定（任意）**
+  - `--speaker-names "田中,山田"` のように候補名を与えた場合のみ実行されます。
+  - Botが文字起こし内容（語彙、一人称、呼称、文脈など）を **gpt-4o** に渡し、`speaker_N` と候補名の対応を推定します。
+  - これは音の特徴から個人を特定するものではなく、テキストだけを根拠にした推測です。候補名リストにない名前は使いません。
+
+### 重要な注意点（正確さの限界）
+
+- **話者名の確定は厳密ではありません。** ElevenLabsの話者分離は強力ですが、`speaker_0`→実在の人物名の割当は
+  gpt-4oによるテキスト推論のため、誤割当（入れ替わり・混在）が起こり得ます。
+- **候補名の質と数に依存します。** 候補が多すぎる／似た役割の人が多いと誤りが増えます。できるだけ必要最小限の候補に絞ると良いです。
+- **`--num-speakers` の誤指定は悪影響。** 実際より多い/少ない話者数を指定すると分離と整形の両方に影響します。
+- **完全な音声話者認識ではありません。** 声質そのものから個人を同定する処理は行っていません。
