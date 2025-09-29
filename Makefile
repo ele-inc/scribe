@@ -61,17 +61,34 @@ transcribe:
 	@echo "🎙️ Transcribing file: $(FILE)"
 	@deno run --allow-all src/cli.ts $(FILE) $(ARGS)
 
+# Replace speaker labels in transcript
+replace-speakers:
+	@if [ -z "$(FILE)" ] || [ -z "$(SPEAKERS)" ]; then \
+		echo "Error: FILE and SPEAKERS parameters are required"; \
+		echo "Usage: make replace-speakers FILE=transcript.txt SPEAKERS='Name1,Name2,Name3' [OUTPUT=output.txt]"; \
+		echo ""; \
+		echo "Examples:"; \
+		echo "  make replace-speakers FILE=transcript.txt SPEAKERS='Alice,Bob'"; \
+		echo "  make replace-speakers FILE=meeting.txt SPEAKERS='John,Jane,Mike' OUTPUT=labeled.txt"; \
+		exit 1; \
+	fi
+	@echo "👥 Replacing speaker labels in: $(FILE)"
+	@echo "   Speaker candidates: $(SPEAKERS)"
+	@scripts/replace-speakers.ts "$(FILE)" "$(SPEAKERS)" $(OUTPUT)
+
 # Help
 help:
 	@echo "Available commands:"
-	@echo "  make deploy      - Deploy to Cloud Run with .env variables"
-	@echo "  make dev         - Start local development server"
-	@echo "  make build       - Build Docker image locally"
-	@echo "  make docker-run  - Run Docker container locally"
-	@echo "  make install     - Cache Deno dependencies"
-	@echo "  make status      - Show Cloud Run deployment status"
-	@echo "  make env         - Show current environment variables"
-	@echo "  make logs        - Show recent Cloud Run logs"
-	@echo "  make transcribe  - Transcribe audio/video files locally"
-	@echo "                     Usage: make transcribe FILE=path/to/file [ARGS='options']"
-	@echo "  make help        - Show this help message"
+	@echo "  make deploy          - Deploy to Cloud Run with .env variables"
+	@echo "  make dev             - Start local development server"
+	@echo "  make build           - Build Docker image locally"
+	@echo "  make docker-run      - Run Docker container locally"
+	@echo "  make install         - Cache Deno dependencies"
+	@echo "  make status          - Show Cloud Run deployment status"
+	@echo "  make env             - Show current environment variables"
+	@echo "  make logs            - Show recent Cloud Run logs"
+	@echo "  make transcribe      - Transcribe audio/video files locally"
+	@echo "                        Usage: make transcribe FILE=path/to/file [ARGS='options']"
+	@echo "  make replace-speakers - Replace speaker labels with names using AI"
+	@echo "                        Usage: make replace-speakers FILE=transcript.txt SPEAKERS='Name1,Name2'"
+	@echo "  make help            - Show this help message"
