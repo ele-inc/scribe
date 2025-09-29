@@ -19,9 +19,17 @@ export async function identifySpeakers(
 ): Promise<Map<string, string>> {
   const client = getOpenAIClient();
 
-  const speakerListString = speakerNames.join(", ");
+  // Detect all unique speaker labels present in the transcript
+  const detectedLabels = extractSpeakerLabels(transcript);
+  const labelsToMap = detectedLabels.length > 0 ? detectedLabels : ["speaker_0", "speaker_1"]; // fallback
 
-  const prompt = `以下の文字起こし結果と話者候補リストを分析し、各話者（例: speaker_0, speaker_1）が誰なのかを特定してください。
+  const speakerListString = speakerNames.join(", ");
+  const labelsListString = labelsToMap.join(", ");
+
+  const exampleJson = `{
+${labelsToMap.map((l) => `  "${l}": "（ここに候補リストから選んだ名前）"`).join(",\n")}\n}`;
+
+  const prompt = `以下の文字起こし結果と話者候補リストを分析し、各話者ラベルが誰なのかを特定してください。
 
 # 話者候補リスト
 ${speakerNames.map((name) => `- ${name}`).join("\n")}
@@ -30,17 +38,14 @@ ${speakerNames.map((name) => `- ${name}`).join("\n")}
 ${transcript}
 
 # 指示とルール
-1. 各話者の発言内容、一人称、文脈、名前の候補から推測される性別、お互いの呼び名などから、その話者が「話者候補リスト」の誰に該当するかを判断してください。
-2. **最重要**: JSONの各値は、必ず以下の「話者候補リスト」の中から選択してください。
-   【利用可能な名前: ${speakerListString}】
-3. 「話者候補リスト」に存在しない名前は、たとえ文字起こし中に出現したとしても、絶対に使用してはいけません。
-4. 判定が難しい場合でも、最も可能性が高いと思われる候補を選択してください。
-5. 以下のJSON形式で、説明や他のテキストを一切含めずに出力してください。
+1. 各話者の発言内容、一人称、文脈、互いの呼称などから、その話者が「話者候補リスト」の誰に該当するかを判断してください。
+2. 値として使用できるのは、次の候補名のみです（新しい名前を作らないこと）：【${speakerListString}】
+3. 次のラベルに対してのみマッピングを出力してください（追加や欠落は禁止）：【${labelsListString}】
+4. 迷う場合でも、最も可能性が高い候補を選択してください（重複選択は可）。
+5. 出力はJSONオブジェクトのみ。説明や余分なテキストは禁止。
 
-{
-  "speaker_0": "（ここに候補リストから選んだ名前）",
-  "speaker_1": "（ここに候補リストから選んだ名前）"
-}
+出力例（キーは検出されたラベルと完全一致させること。以下は例）：
+${exampleJson}
 `;
 
   try {
@@ -66,8 +71,14 @@ ${transcript}
       throw new Error("OpenAI API returned empty response");
     }
 
-    const speakerMapping = JSON.parse(result);
-    return new Map(Object.entries(speakerMapping));
+    const rawMapping = JSON.parse(result) as Record<string, string>;
+
+    // Normalize and filter only expected labels; if missing, skip it
+    const mapping: [string, string][] = labelsToMap
+      .filter((label) => typeof rawMapping[label] === "string" && rawMapping[label].trim().length > 0)
+      .map((label) => [label, rawMapping[label].trim()]);
+
+    return new Map(mapping);
   } catch (error) {
     console.error("Error identifying speakers:", error);
     throw error;
@@ -86,9 +97,28 @@ export function replaceSpeakerLabels(
 
   for (const [speakerLabel, name] of sortedEntries) {
     // Replace all occurrences of the speaker label with the name
-    const regex = new RegExp(`\\b${speakerLabel}\\b`, 'g');
+    const regex = new RegExp(`\\b${escapeRegExp(speakerLabel)}\\b`, 'g');
     result = result.replace(regex, name);
   }
 
   return result;
+}
+
+function extractSpeakerLabels(transcript: string): string[] {
+  const labels = new Set<string>();
+  // Match labels that appear at the start of a line (optionally after a timestamp), followed by a colon
+  // Examples handled:
+  //  - "speaker_0: text"
+  //  - "1:23 speaker_1: text"
+  //  - "01:02:03 unknown_speaker: text"
+  const pattern = /(?:^|\n)\s*(?:\d{1,2}:\d{2}(?::\d{2})?\s+)?([A-Za-z][\w-]*)\s*:/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(transcript)) !== null) {
+    labels.add(match[1]);
+  }
+  return Array.from(labels);
+}
+
+function escapeRegExp(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
