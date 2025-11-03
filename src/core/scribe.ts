@@ -31,14 +31,10 @@ async function uploadTranscript(
   filename: string | undefined,
   platform: "slack" | "discord"
 ): Promise<void> {
-  const message = filename 
-    ? `✅ "${filename}" の文字起こしが完了しました！`
-    : undefined;
-    
   if (platform === "slack") {
-    await uploadTranscriptToSlack(transcript, channelId, timestamp, message);
+    await uploadTranscriptToSlack(transcript, channelId, timestamp);
   } else if (platform === "discord") {
-    await uploadTranscriptToDiscord(transcript, channelId, message);
+    await uploadTranscriptToDiscord(transcript, channelId);
   }
 }
 

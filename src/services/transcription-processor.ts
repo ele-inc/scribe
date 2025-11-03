@@ -10,6 +10,8 @@ import { processCloudFile, isValidAudioVideoFile, extractMediaInfo } from "./fil
 import { PlatformAdapter } from "../adapters/platform-adapter.ts";
 import { downloadSlackFileToPath } from "../clients/slack.ts";
 import { getFileExtensionFromMime } from "../utils/utils.ts";
+import { cloudServiceManager } from "./cloud-service-manager.ts";
+import { cloudServiceRegistry } from "./cloud-service.ts";
 
 export interface FileAttachment {
   url: string;
@@ -53,6 +55,27 @@ export class TranscriptionProcessor {
    */
   async processCloudUrl(url: string, options: TranscriptionOptions): Promise<void> {
     try {
+      // Get metadata first to send status message with filename
+      const service = cloudServiceRegistry.getServiceForUrl(url);
+
+      if (!service) {
+        await this.adapter.sendErrorMessage("サポートされていないURLです。");
+        return;
+      }
+
+      const fileId = service.extractFileId(url);
+      if (!fileId) {
+        await this.adapter.sendErrorMessage("ファイルIDを抽出できませんでした。");
+        return;
+      }
+
+      // Get metadata and send status message once with filename and options
+      const metadata = await service.getFileMetadata(fileId);
+      await this.adapter.sendStatusMessage(
+        this.adapter.formatProcessingMessage(metadata.filename, options)
+      );
+
+      // Now process the file (download and transcribe)
       const result = await processCloudFile(url, {
         channelId: this.context.channelId,
         timestamp: this.context.timestamp,
@@ -69,13 +92,7 @@ export class TranscriptionProcessor {
         return;
       }
 
-      if (result.filename) {
-        // Update with actual filename
-        await this.adapter.sendStatusMessage(
-          this.adapter.formatProcessingMessage(result.filename, options)
-        );
-        // Success message is sent from scribe.ts after upload
-      }
+      // Status message already sent above, transcription is handled inside processCloudFile
     } catch (error) {
       console.error("Cloud file processing error:", error);
       await this.adapter.sendErrorMessage(

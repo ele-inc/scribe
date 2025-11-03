@@ -25,7 +25,6 @@ export async function uploadTranscriptToSlack(
   transcript: string,
   channelId: string,
   timestamp: string,
-  message?: string,
 ) {
   console.log("Uploading transcript to Slack...");
 
@@ -100,11 +99,6 @@ export async function uploadTranscriptToSlack(
   }
 
   console.log("Transcript successfully uploaded to Slack");
-
-  // Send completion message separately after file upload to ensure correct ordering
-  if (message) {
-    await sendSlackMessage(channelId, message, timestamp);
-  }
 }
 
 export async function downloadSlackFile(fileURL: string): Promise<ArrayBuffer> {
