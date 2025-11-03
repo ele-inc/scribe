@@ -112,6 +112,49 @@ export function replaceSpeakerLabels(
   return result;
 }
 
+// 文字数制限は設けません
+export async function summarizeTranscript(transcript: string): Promise<string> {
+  const client = getOpenAIClient();
+
+  const prompt =
+    `以下の文字起こしを読み、重要なポイントを日本語要約してください。
+
+# 出力要件
+- 箇条書きの行頭には「・」を使用してください。
+- 具体的な数値や決定事項があれば含めてください。
+- 不明点や次のアクションがあれば明記してください。
+
+# 文字起こし
+${transcript}`;
+
+  try {
+    const response = await client.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content:
+            "あなたは会議や打ち合わせの要点を簡潔にまとめる日本語アシスタントです。重要事項を漏れなく整理します。",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    });
+
+    const summary = response.choices[0].message.content?.trim();
+    if (!summary) {
+      throw new Error("OpenAI API returned empty summary");
+    }
+
+    return summary;
+  } catch (error) {
+    console.error("Error summarizing transcript:", error);
+    throw error;
+  }
+}
+
 function extractSpeakerLabels(transcript: string): string[] {
   const labels = new Set<string>();
   // Match labels that appear at the start of a line (optionally after a timestamp), followed by a colon

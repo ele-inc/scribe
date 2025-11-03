@@ -55,6 +55,7 @@ export class SlackAdapter implements PlatformAdapter {
       `• \`--no-diarize\`: 話者識別を無効化\n` +
       `• \`--no-timestamp\`: タイムスタンプを非表示\n` +
       `• \`--no-audio-events\`: 音声イベント（拍手、音楽など）のタグを無効化\n` +
+      `• \`--no-summarize\`: 文字起こし後の要約送信をスキップ\n` +
       `• \`--num-speakers <数>\`: 話者数を指定（デフォルト: 2）\n` +
       `• \`--speaker-names "<名前1>,<名前2>"\`: 話者名を指定（AIが自動判定）\n\n` +
       `*使用例:*\n` +
@@ -105,6 +106,7 @@ export class DiscordAdapter implements PlatformAdapter {
 • \`--speaker-names 名前1,名前2\`: 話者名を設定（順不同、人数分必要）
 • \`--no-timestamp\`: タイムスタンプを非表示
 • \`--no-audio-events\`: 音声イベントを非表示
+• \`--no-summarize\`: 文字起こし後の要約送信をスキップ
 
 **⚠️注意点**
 •「アプリケーションが応答しませんでした」と表示されても、Discordの仕様によるもので処理は実行されています。

@@ -39,6 +39,7 @@ export interface TranscriptionOptions {
   tagAudioEvents: boolean;
   numSpeakers?: number;
   speakerNames?: string[];
+  summarize?: boolean;
 }
 
 export interface TranscriptionLog {

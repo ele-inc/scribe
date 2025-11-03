@@ -10,6 +10,7 @@ interface CliOptions extends TranscriptionOptions {
   output?: string;
   format: "text" | "json";
   noSave?: boolean;
+  summarize?: boolean;
 }
 
 /**
@@ -39,6 +40,7 @@ function parseArgs(): { filePath: string; options: CliOptions } {
     tagAudioEvents: !args.includes("--no-audio-events"),
     format: "text",
     noSave: args.includes("--no-save"),
+    summarize: !args.includes("--no-summarize"),
   };
 
   // Parse speaker count
@@ -98,6 +100,7 @@ Options:
   -o, --output <file>  Output file path (default: transcripts/<filename>_<timestamp>.txt)
   -f, --format <type>  Output format: text or json (default: text)
   --no-save            Output to stdout instead of saving to file
+  --no-summarize       Skip generating a summary after transcription
 
 Transcription Options:
   --no-diarize         Disable speaker identification (default: enabled)
@@ -131,11 +134,12 @@ Note: Video files (mp4, mkv, mov, etc.) will be automatically converted to audio
  * Main function
  */
 async function main() {
+  let tempFilePath: string | undefined;
+
   try {
     const { filePath, options } = parseArgs();
 
     let actualFilePath = filePath;
-    let tempFilePath: string | undefined;
     let filename = filePath;
 
     // Check if input is a URL (specifically a supported cloud URL)
@@ -192,6 +196,7 @@ async function main() {
       speakerNames: options.speakerNames,
       showTimestamp: options.showTimestamp,
       tagAudioEvents: options.tagAudioEvents,
+      summarize: options.summarize,
       format: options.format,
     });
 
