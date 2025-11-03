@@ -7,6 +7,7 @@ import { CloudService, CloudDownloadResult, cloudServiceRegistry } from "./cloud
 import { GoogleDriveAdapter } from "../adapters/google-drive-adapter.ts";
 import { TempFileManager } from "./temp-file-manager.ts";
 import { DropboxAdapter } from "../adapters/dropbox-adapter.ts";
+import { YouTubeAdapter } from "../adapters/youtube-adapter.ts";
 
 export class CloudServiceManager {
   private tempManager = new TempFileManager();
@@ -25,6 +26,7 @@ export class CloudServiceManager {
 
     // Future services can be registered here:
     cloudServiceRegistry.register(new DropboxAdapter());
+    cloudServiceRegistry.register(new YouTubeAdapter());
     // cloudServiceRegistry.register(new OneDriveService());
     // cloudServiceRegistry.register(new BoxService());
   }
@@ -78,9 +80,12 @@ export class CloudServiceManager {
 
     try {
       // Create temp file
+      const extension = typeof service.getPreferredFileExtension === "function"
+        ? service.getPreferredFileExtension()
+        : "tmp";
       const tempPath = await this.tempManager.createTempFile(
         service.name.toLowerCase().replace(/\s+/g, '_'),
-        'tmp'
+        extension
       );
 
       // Get metadata
