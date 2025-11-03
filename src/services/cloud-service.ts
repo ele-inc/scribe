@@ -47,6 +47,11 @@ export interface CloudService {
    * Check if file is a media file that should be transcribed
    */
   isMediaFile(mimeType: string): boolean;
+
+  /**
+   * Preferred temporary file extension for downloads (without dot)
+   */
+  getPreferredFileExtension?(): string;
 }
 
 /**
@@ -84,6 +89,10 @@ export abstract class BaseCloudService implements CloudService {
       console.error(`${this.name} - ${errorMessage}:`, error);
       throw new Error(`${this.name}: ${errorMessage} - ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  getPreferredFileExtension(): string {
+    return 'tmp';
   }
 }
 

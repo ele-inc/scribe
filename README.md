@@ -6,7 +6,7 @@ A multi-platform bot that uses the [ElevenLabs Scribe API](https://elevenlabs.io
 
 - **Multi-platform support:** Works with both Slack and Discord
 - Transcribes audio and video files when mentioned or via slash commands
-- **Google Drive integration:** Supports Google Drive video/audio links for transcription
+- **Google Drive & YouTube integration:** Supports Google Drive file links and YouTube URLs for transcription
 - **Speaker diarization:** Identifies different speakers in the conversation
 - **Automatic timestamps:** Adds timestamps for better navigation
 - **Audio event detection:** Detects music, laughter, and other audio events
@@ -160,14 +160,16 @@ The Cloud Run URL can be found in the output of the `gcloud run deploy` command 
 3. (Optional) Add transcription options like `--no-timestamp` or `--no-diarize`
 4. The bot will process the file and reply with a transcript text file
 
-#### With Google Drive links:
+#### With Google Drive / YouTube links:
 
 1. Share a Google Drive video/audio file link in a message
+   - For YouTube, paste the video URL instead
 2. Mention the bot in the same message with the link
 3. (Optional) Add transcription options
 4. The bot will download from Google Drive and transcribe
 
 Example: `@bot https://drive.google.com/file/d/xxxxx/view --num-speakers 3`
+Example: `@bot https://www.youtube.com/watch?v=xxxxxxx --no-timestamp`
 
 ### Discord
 
@@ -185,13 +187,14 @@ Example: `@bot https://drive.google.com/file/d/xxxxx/view --num-speakers 3`
 3. (Optional) Add transcription options
 4. The bot will process and return the transcript
 
-#### With Google Drive links:
+#### With Google Drive / YouTube links:
 
-1. Use `/transcribe url:<drive_link>` command
+1. Use `/transcribe url:<drive_link>` command (YouTube URLs are also supported)
 2. (Optional) Add transcription options as parameters
 3. The bot will download and transcribe the file
 
 Example: `/transcribe url:https://drive.google.com/file/d/xxxxx/view speakers:3`
+Example: `/transcribe url:https://www.youtube.com/watch?v=xxxxxxx`
 
 ### Supported File Formats
 
