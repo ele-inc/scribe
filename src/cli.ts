@@ -91,7 +91,7 @@ ElevenLabs Transcription CLI
 Usage: deno run --allow-all src/cli.ts [options] <file>
 
 Arguments:
-  <file>                Path to audio/video file to transcribe, or Dropbox URL
+  <file>                Path to audio/video file to transcribe, or supported URL (Google Drive/Dropbox/YouTube)
 
 Options:
   -h, --help           Show this help message
@@ -120,8 +120,8 @@ Examples:
   # Disable speaker diarization
   deno run --allow-all src/cli.ts --no-diarize recording.wav
 
-  # Transcribe from Dropbox URL
-  deno run --allow-all src/cli.ts "https://www.dropbox.com/s/..." --speaker-names "Alice,Bob"
+  # Transcribe from a supported URL (Dropbox / Google Drive / YouTube)
+  deno run --allow-all src/cli.ts "https://www.youtube.com/watch?v=xxxxxxx" --speaker-names "Alice,Bob"
 
 Note: Video files (mp4, mkv, mov, etc.) will be automatically converted to audio before transcription.
 `);

@@ -117,7 +117,7 @@ function handleTranscribeCommand(
   // If neither URL nor file is provided
   if (!urlOption && !fileOption) {
     const usageMessage = `**🎙️概要**
-音声・動画ファイルやGoogle DriveやDropboxのURLから文字起こしを行います。
+音声・動画ファイルやGoogle DriveやDropbox、YouTubeのURLから文字起こしを行います。
 チャット欄に/transcribeと入力で使用開始。
 
 **⚙️オプション**
@@ -129,7 +129,7 @@ function handleTranscribeCommand(
 
 **⚠️注意点**
 •「アプリケーションが応答しませんでした」と表示されても、Discordの仕様によるもので処理は実行されています。
-•Google DriveのURLからの文字起こしは、最大20GBのファイルに対応しています。`;
+•Google DriveやYouTubeなどのURLからの文字起こしは、元の公開設定に依存します。`;
 
     return replyToInteraction(usageMessage, true);
   }
@@ -180,7 +180,7 @@ function handleMessageCommand(
 
   if ((!audioVideoAttachments || audioVideoAttachments.length === 0) && cloudUrls.length === 0) {
     return replyToInteraction(
-      "このメッセージには音声/動画ファイルまたはクラウドのURL(Google Drive/Dropbox)が含まれていません。",
+      "このメッセージには音声/動画ファイルまたはクラウドのURL(Google Drive/Dropbox/YouTube)が含まれていません。",
       true,
     );
   }
