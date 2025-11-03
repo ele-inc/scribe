@@ -1,6 +1,8 @@
 import { TranscriptionOptions } from "../core/types.ts";
 import { transcribeAudioFile } from "../core/scribe.ts";
 import { cloudServiceManager } from "./cloud-service-manager.ts";
+import { PlatformAdapter } from "../adapters/platform-adapter.ts";
+import { getErrorMessage } from "../utils/errors.ts";
 
 export interface FileInfo {
   filename: string;
@@ -17,7 +19,7 @@ export interface ProcessingResult {
 
 export function generateOptionInfo(options: TranscriptionOptions): string[] {
   const optionInfo: string[] = [];
-  
+
   if (!options.diarize) optionInfo.push("話者識別OFF");
   if (!options.showTimestamp) optionInfo.push("タイムスタンプOFF");
   if (!options.tagAudioEvents) optionInfo.push("音声イベントOFF");
@@ -28,7 +30,7 @@ export function generateOptionInfo(options: TranscriptionOptions): string[] {
   if (options.speakerNames && options.speakerNames.length > 0) {
     optionInfo.push(`話者名: ${options.speakerNames.join(", ")}`);
   }
-  
+
   return optionInfo;
 }
 
@@ -49,16 +51,16 @@ export async function processCloudFile(
     timestamp: string;
     userId: string;
     transcriptionOptions: TranscriptionOptions;
-    platform: "discord" | "slack";
+    adapter: PlatformAdapter;
   }
 ): Promise<ProcessingResult> {
   try {
     const result = await cloudServiceManager.downloadFromUrl(url);
-    
+
     if (!result.success) {
       return { success: false, error: result.error };
     }
-    
+
     if (!result.metadata || !result.tempPath) {
       return { success: false, error: "Failed to get file metadata" };
     }
@@ -74,15 +76,14 @@ export async function processCloudFile(
       filename: result.metadata.filename,
       isGoogleDrive: true, // TODO: Update to isCloudFile
       tempPath: result.tempPath,
-      platform: options.platform,
+      adapter: options.adapter,
     });
 
     return { success: true, filename: result.metadata.filename };
   } catch (error) {
-    console.error("Cloud file processing error:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Unknown error" 
+    return {
+      success: false,
+      error: getErrorMessage(error)
     };
   } finally {
     // Cleanup is handled by cloudServiceManager
@@ -100,12 +101,12 @@ export function extractMediaInfo(text: string): {
 } {
   const cloudServices = cloudServiceManager.extractCloudUrls(text || "");
   const cloudUrls = cloudServices.map(cs => cs.url);
-  
+
   // Filter Google Drive URLs for backward compatibility
   const googleDriveUrls = cloudServices
     .filter(cs => cs.service.name === "Google Drive")
     .map(cs => cs.url);
-  
+
   return {
     cloudUrls,
     googleDriveUrls, // Keep for backward compatibility

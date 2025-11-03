@@ -6,12 +6,16 @@
 import { TranscriptionOptions } from "../core/types.ts";
 import { transcribeAudioFile } from "../core/scribe.ts";
 import { TempFileManager } from "./temp-file-manager.ts";
-import { processCloudFile, isValidAudioVideoFile, extractMediaInfo } from "./file-processor.ts";
+import {
+  extractMediaInfo,
+  isValidAudioVideoFile,
+  processCloudFile,
+} from "./file-processor.ts";
 import { PlatformAdapter } from "../adapters/platform-adapter.ts";
-import { downloadSlackFileToPath } from "../clients/slack.ts";
 import { getFileExtensionFromMime } from "../utils/utils.ts";
 import { cloudServiceManager } from "./cloud-service-manager.ts";
 import { cloudServiceRegistry } from "./cloud-service.ts";
+import { getErrorMessage } from "../utils/errors.ts";
 
 export interface FileAttachment {
   url: string;
@@ -24,7 +28,6 @@ export interface TranscriptionContext {
   channelId: string;
   timestamp: string;
   userId: string;
-  platform: "discord" | "slack";
 }
 
 export class TranscriptionProcessor {
@@ -32,13 +35,16 @@ export class TranscriptionProcessor {
 
   constructor(
     private adapter: PlatformAdapter,
-    private context: TranscriptionContext
+    private context: TranscriptionContext,
   ) {}
 
   /**
    * Process text input for cloud service URLs
    */
-  async processTextInput(text: string, options: TranscriptionOptions): Promise<void> {
+  async processTextInput(
+    text: string,
+    options: TranscriptionOptions,
+  ): Promise<void> {
     const { cloudUrls } = extractMediaInfo(text);
 
     if (cloudUrls.length === 0) {
@@ -53,7 +59,10 @@ export class TranscriptionProcessor {
   /**
    * Process a cloud service URL (Google Drive, Dropbox, etc.)
    */
-  async processCloudUrl(url: string, options: TranscriptionOptions): Promise<void> {
+  async processCloudUrl(
+    url: string,
+    options: TranscriptionOptions,
+  ): Promise<void> {
     try {
       // Get metadata first to send status message with filename
       const service = cloudServiceRegistry.getServiceForUrl(url);
@@ -65,14 +74,16 @@ export class TranscriptionProcessor {
 
       const fileId = service.extractFileId(url);
       if (!fileId) {
-        await this.adapter.sendErrorMessage("ファイルIDを抽出できませんでした。");
+        await this.adapter.sendErrorMessage(
+          "ファイルIDを抽出できませんでした。",
+        );
         return;
       }
 
       // Get metadata and send status message once with filename and options
       const metadata = await service.getFileMetadata(fileId);
       await this.adapter.sendStatusMessage(
-        this.adapter.formatProcessingMessage(metadata.filename, options)
+        this.adapter.formatProcessingMessage(metadata.filename, options),
       );
 
       // Now process the file (download and transcribe)
@@ -81,7 +92,7 @@ export class TranscriptionProcessor {
         timestamp: this.context.timestamp,
         userId: this.context.userId,
         transcriptionOptions: options,
-        platform: this.context.platform,
+        adapter: this.adapter,
       });
 
       if (!result.success) {
@@ -96,13 +107,16 @@ export class TranscriptionProcessor {
     } catch (error) {
       console.error("Cloud file processing error:", error);
       await this.adapter.sendErrorMessage(
-        error instanceof Error ? error.message : "Unknown error"
+        getErrorMessage(error),
       );
     }
   }
 
   // Keep backward compatibility
-  async processGoogleDriveUrl(url: string, options: TranscriptionOptions): Promise<void> {
+  async processGoogleDriveUrl(
+    url: string,
+    options: TranscriptionOptions,
+  ): Promise<void> {
     return await this.processCloudUrl(url, options);
   }
 
@@ -111,12 +125,12 @@ export class TranscriptionProcessor {
    */
   async processAttachments(
     attachments: FileAttachment[],
-    options: TranscriptionOptions
+    options: TranscriptionOptions,
   ): Promise<void> {
     for (const attachment of attachments) {
       if (!isValidAudioVideoFile(attachment.mimeType)) {
         await this.adapter.sendStatusMessage(
-          `ファイル "${attachment.filename}" は音声または動画ファイルではありません。`
+          `ファイル "${attachment.filename}" は音声または動画ファイルではありません。`,
         );
         continue;
       }
@@ -130,20 +144,20 @@ export class TranscriptionProcessor {
    */
   private async processAttachment(
     attachment: FileAttachment,
-    options: TranscriptionOptions
+    options: TranscriptionOptions,
   ): Promise<void> {
     let tempPath: string | undefined;
 
     try {
       // Update status
       await this.adapter.sendStatusMessage(
-        this.adapter.formatProcessingMessage(attachment.filename, options)
+        this.adapter.formatProcessingMessage(attachment.filename, options),
       );
 
-      // For Slack files, download directly to temp
+      // Download file using platform adapter
       const extension = getFileExtensionFromMime(attachment.mimeType || "");
       tempPath = await this.tempManager.createTempFile("audio", extension);
-      await downloadSlackFileToPath(attachment.url, tempPath);
+      await this.adapter.downloadFile(attachment.url, tempPath);
 
       // Transcribe
       const fileURL = `file://${tempPath}`;
@@ -157,14 +171,14 @@ export class TranscriptionProcessor {
         options,
         filename: attachment.filename,
         tempPath,
-        platform: this.context.platform,
+        adapter: this.adapter,
       });
 
       // Success message is sent from scribe.ts after upload
     } catch (error) {
-      console.error(`${this.context.platform} attachment processing error:`, error);
+      console.error("Attachment processing error:", error);
       await this.adapter.sendErrorMessage(
-        error instanceof Error ? error.message : "Unknown error"
+        getErrorMessage(error),
       );
     } finally {
       // Cleanup is handled by scribe.ts

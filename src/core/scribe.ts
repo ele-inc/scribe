@@ -8,55 +8,11 @@ import {
   convertVideoToAudio,
   isVideoFile,
 } from "../utils/utils.ts";
-import {
-  sendSlackMessage,
-  uploadTranscriptToSlack,
-  downloadSlackFileToPath,
-} from "../clients/slack.ts";
-import {
-  sendDiscordMessage,
-  uploadTranscriptToDiscord,
-} from "../clients/discord.ts";
 import { summarizeTranscript } from "../clients/openai-client.ts";
+import { PlatformAdapter } from "../adapters/platform-adapter.ts";
 import { transcribeCore } from "./transcribe-core.ts";
 import { TempFileManager } from "../services/temp-file-manager.ts";
 
-/**
- * Upload transcript to the appropriate platform
- */
-async function uploadTranscript(
-  transcript: string,
-  channelId: string,
-  timestamp: string,
-  filename: string | undefined,
-  platform: "slack" | "discord"
-): Promise<void> {
-  if (platform === "slack") {
-    await uploadTranscriptToSlack(transcript, channelId, timestamp);
-  } else if (platform === "discord") {
-    await uploadTranscriptToDiscord(transcript, channelId);
-  }
-}
-
-async function sendTranscriptSummary(
-  transcript: string,
-  channelId: string,
-  threadTimestamp: string,
-  platform: "slack" | "discord",
-) {
-  try {
-    const summary = await summarizeTranscript(transcript);
-    const summaryMessage = `📝 要約\n${summary}`;
-
-    if (platform === "slack") {
-      await sendSlackMessage(channelId, summaryMessage, threadTimestamp);
-    } else {
-      await sendDiscordMessage(channelId, summaryMessage);
-    }
-  } catch (error) {
-    console.error("Failed to generate or send transcript summary:", error);
-  }
-}
 
 
 export async function transcribeAudioFile({
@@ -70,7 +26,7 @@ export async function transcribeAudioFile({
   filename,
   isGoogleDrive,
   tempPath,
-  platform = "slack",
+  adapter,
 }: {
   fileURL: string;
   fileType: string;
@@ -82,7 +38,7 @@ export async function transcribeAudioFile({
   filename?: string;
   isGoogleDrive?: boolean;
   tempPath?: string;
-  platform?: "slack" | "discord";
+  adapter: PlatformAdapter;
 }) {
   let transcript: string | null = null;
   let languageCode: string | null = null;
@@ -96,18 +52,18 @@ export async function transcribeAudioFile({
   console.log("fileType (MIME):", fileType);
 
   try {
-    // Handle Google Drive files vs Slack files
+    // Handle Google Drive files vs platform files
     if (isGoogleDrive && tempPath) {
       // File is already downloaded from cloud service
       tempFilePath = tempPath;
       console.log("Using cloud file temp path:", tempFilePath);
     } else {
-      // Download from Slack
+      // Download from platform (Slack/Discord)
       const fileExtension = getFileExtensionFromMime(fileType);
       tempFilePath = await tempManager.createTempFile("audio", fileExtension);
 
       console.log("downloading file to temp path:", tempFilePath);
-      await downloadSlackFileToPath(fileURL, tempFilePath);
+      await adapter.downloadFile(fileURL, tempFilePath);
     }
 
     // Check if the file is a video and convert to MP3 if needed
@@ -141,31 +97,20 @@ export async function transcribeAudioFile({
         ? createTranscriptionHeader(filename) + transcript
         : transcript;
 
-      await uploadTranscript(finalTranscript, channelId, timestamp, filename, platform);
+      await adapter.uploadTranscript(finalTranscript, filename);
       if (options.summarize !== false) {
-        await sendTranscriptSummary(
-          finalTranscript,
-          channelId,
-          timestamp,
-          platform,
-        );
+        try {
+          const summary = await summarizeTranscript(finalTranscript);
+          await adapter.sendSummary(summary);
+        } catch (error) {
+          console.error("Failed to generate or send transcript summary:", error);
+        }
       } else {
         console.log("Summary generation skipped by --no-summarize option");
       }
     } else {
       console.log("No transcript generated, sending error message");
-      if (platform === "slack") {
-        await sendSlackMessage(
-          channelId,
-          "Sorry, no transcript was generated. Please try again.",
-          timestamp,
-        );
-      } else if (platform === "discord") {
-        await sendDiscordMessage(
-          channelId,
-          "❌ 文字起こしの生成に失敗しました。もう一度お試しください。"
-        );
-      }
+      await adapter.sendErrorMessage("文字起こしの生成に失敗しました。もう一度お試しください。");
     }
   } finally {
     // Clean up audio file if it was created from video conversion

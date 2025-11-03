@@ -1,7 +1,7 @@
 import { TranscriptionOptions } from "../core/types.ts";
 import { formatOptionsText } from "../services/file-processor.ts";
-import { sendSlackMessage } from "../clients/slack.ts";
-import { editInteractionReply } from "../clients/discord.ts";
+import { sendSlackMessage, uploadTranscriptToSlack, downloadSlackFileToPath } from "../clients/slack.ts";
+import { editInteractionReply, sendDiscordMessage, uploadTranscriptToDiscord, downloadDiscordFile } from "../clients/discord.ts";
 // @ts-ignore: Types are provided in the deployment environment
 import { APIInteraction } from "npm:discord-api-types@0.37.100/v10";
 
@@ -11,6 +11,9 @@ export interface PlatformAdapter {
   sendSuccessMessage(filename: string): Promise<void>;
   sendUsageMessage(): Promise<void>;
   formatProcessingMessage(filename: string, options: TranscriptionOptions): string;
+  uploadTranscript(transcript: string, filename?: string): Promise<void>;
+  sendSummary(summary: string): Promise<void>;
+  downloadFile(fileURL: string, filePath: string): Promise<void>;
 }
 
 /**
@@ -70,6 +73,19 @@ export class SlackAdapter implements PlatformAdapter {
   formatProcessingMessage(filename: string, options: TranscriptionOptions): string {
     return formatProcessingMessageCommon(filename, options);
   }
+
+  async uploadTranscript(transcript: string, filename?: string): Promise<void> {
+    await uploadTranscriptToSlack(transcript, this.channelId, this.threadTimestamp);
+  }
+
+  async sendSummary(summary: string): Promise<void> {
+    const summaryMessage = `📝 要約\n${summary}`;
+    await sendSlackMessage(this.channelId, summaryMessage, this.threadTimestamp);
+  }
+
+  async downloadFile(fileURL: string, filePath: string): Promise<void> {
+    await downloadSlackFileToPath(fileURL, filePath);
+  }
 }
 
 export class DiscordAdapter implements PlatformAdapter {
@@ -117,6 +133,23 @@ export class DiscordAdapter implements PlatformAdapter {
 
   formatProcessingMessage(filename: string, options: TranscriptionOptions): string {
     return formatProcessingMessageCommon(filename, options);
+  }
+
+  async uploadTranscript(transcript: string, filename?: string): Promise<void> {
+    const channelId = this.interaction.channel?.id || "";
+    await uploadTranscriptToDiscord(transcript, channelId);
+  }
+
+  async sendSummary(summary: string): Promise<void> {
+    const channelId = this.interaction.channel?.id || "";
+    const summaryMessage = `📝 要約\n${summary}`;
+    await sendDiscordMessage(channelId, summaryMessage);
+  }
+
+  async downloadFile(fileURL: string, filePath: string): Promise<void> {
+    // Discord returns Uint8Array, so we need to write it to file
+    const fileData = await downloadDiscordFile(fileURL);
+    await Deno.writeFile(filePath, fileData);
   }
 }
 

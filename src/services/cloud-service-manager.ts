@@ -8,6 +8,7 @@ import { GoogleDriveAdapter } from "../adapters/google-drive-adapter.ts";
 import { TempFileManager } from "./temp-file-manager.ts";
 import { DropboxAdapter } from "../adapters/dropbox-adapter.ts";
 import { YouTubeAdapter } from "../adapters/youtube-adapter.ts";
+import { getErrorMessage } from "../utils/errors.ts";
 
 export class CloudServiceManager {
   private tempManager = new TempFileManager();
@@ -44,16 +45,16 @@ export class CloudServiceManager {
   extractCloudUrls(text: string): { url: string; service: CloudService }[] {
     const urlPattern = /https?:\/\/[^\s<>]+/gi;
     const urls = text.match(urlPattern) || [];
-    
+
     const cloudUrls: { url: string; service: CloudService }[] = [];
-    
+
     for (const url of urls) {
       const service = cloudServiceRegistry.getServiceForUrl(url);
       if (service) {
         cloudUrls.push({ url, service });
       }
     }
-    
+
     return cloudUrls;
   }
 
@@ -62,7 +63,7 @@ export class CloudServiceManager {
    */
   async downloadFromUrl(url: string): Promise<CloudDownloadResult> {
     const service = cloudServiceRegistry.getServiceForUrl(url);
-    
+
     if (!service) {
       return {
         success: false,
@@ -111,7 +112,7 @@ export class CloudServiceManager {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: getErrorMessage(error),
       };
     }
   }

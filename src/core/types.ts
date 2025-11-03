@@ -42,6 +42,8 @@ export interface TranscriptionOptions {
   summarize?: boolean;
 }
 
+export type Platform = "slack" | "discord";
+
 export interface TranscriptionLog {
   file_type: string;
   duration: number;

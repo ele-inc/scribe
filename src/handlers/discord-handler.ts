@@ -18,17 +18,23 @@ import {
   replyToInteraction,
   deferInteractionReply,
   editInteractionReply,
-  downloadDiscordFile,
-  getDiscordFileInfo,
 } from "../clients/discord.ts";
 import { parseTranscriptionOptions } from "../utils/utils.ts";
-import { 
-  extractMediaInfo, 
+import {
+  extractMediaInfo,
   isValidAudioVideoFile
 } from "../services/file-processor.ts";
 import { createPlatformAdapter } from "../adapters/platform-adapter.ts";
-import { TranscriptionProcessor } from "../services/transcription-processor.ts";
-import { TempFileManager } from "../services/temp-file-manager.ts";
+import { TranscriptionProcessor, FileAttachment } from "../services/transcription-processor.ts";
+import { getErrorMessage } from "../utils/errors.ts";
+
+/**
+ * Execute async function in background without blocking response
+ * Used for Discord interactions that need immediate response
+ */
+function executeInBackground(fn: () => Promise<void>): void {
+  Promise.resolve().then(fn).catch(console.error);
+}
 
 // Handle Discord interactions
 export async function handleDiscordInteraction(request: Request): Promise<Response> {
@@ -139,8 +145,7 @@ function handleTranscribeCommand(
   const deferResponse = deferInteractionReply();
 
   // Start processing asynchronously without blocking the response
-  // Use Promise.resolve to ensure the process starts but doesn't block
-  Promise.resolve().then(async () => {
+  executeInBackground(async () => {
     try {
       await processDiscordTranscription(interaction, {
         url: urlOption?.value as string,
@@ -152,7 +157,7 @@ function handleTranscribeCommand(
       // Try to update the interaction with error message
       await editInteractionReply(
         interaction.token,
-        `❌ エラーが発生しました: ${error instanceof Error ? error.message : "Unknown error"}`
+        `❌ エラーが発生しました: ${getErrorMessage(error)}`
       ).catch(console.error);
     }
   });
@@ -171,7 +176,7 @@ function handleMessageCommand(
   }
 
   // Check for attachments
-  const audioVideoAttachments = message.attachments?.filter(attachment => 
+  const audioVideoAttachments = message.attachments?.filter(attachment =>
     isValidAudioVideoFile(attachment.content_type)
   );
 
@@ -189,48 +194,47 @@ function handleMessageCommand(
   const deferResponse = deferInteractionReply();
 
   // Process each file/URL in background
-  Promise.resolve().then(async () => {
+  executeInBackground(async () => {
+    const { adapter, processor } = createDiscordProcessor(interaction);
     try {
+      const defaultOptions: TranscriptionOptions = {
+        diarize: true,
+        showTimestamp: true,
+        tagAudioEvents: true
+      };
+
+      // Process cloud URLs
       if (cloudUrls.length > 0) {
         for (const url of cloudUrls) {
-          await processCloudTranscription(interaction, url, {
-            diarize: true,
-            showTimestamp: true,
-            tagAudioEvents: true
-          });
+          await processor.processCloudUrl(url, defaultOptions);
         }
       }
 
+      // Process file attachments
       if (audioVideoAttachments && audioVideoAttachments.length > 0) {
         for (const attachment of audioVideoAttachments) {
-          await processDiscordAttachment(interaction, attachment, {
-            diarize: true,
-            showTimestamp: true,
-            tagAudioEvents: true
-          });
+          await processDiscordAttachment(interaction, attachment, defaultOptions);
         }
       }
     } catch (error) {
       console.error("Error processing message command:", error);
-      await editInteractionReply(
-        interaction.token,
-        `❌ エラーが発生しました: ${error instanceof Error ? error.message : "Unknown error"}`
-      ).catch(console.error);
+      await adapter.sendErrorMessage(getErrorMessage(error));
+    } finally {
+      await processor.cleanup();
     }
   });
 
   return deferResponse;
 }
 
-// Process Discord transcription request
-async function processDiscordTranscription(
-  interaction: APIInteraction,
-  params: {
-    url?: string;
-    fileAttachment?: APIAttachment | null;
-    options: TranscriptionOptions;
-  }
-) {
+/**
+ * Create adapter and processor for Discord interactions
+ * Centralized helper to reduce duplication
+ */
+function createDiscordProcessor(interaction: APIInteraction): {
+  adapter: ReturnType<typeof createPlatformAdapter>;
+  processor: TranscriptionProcessor;
+} {
   const channelId = interaction.channel?.id || "";
   const adapter = createPlatformAdapter("discord", {
     channelId,
@@ -241,8 +245,24 @@ async function processDiscordTranscription(
     channelId,
     timestamp: interaction.id,
     userId: interaction.member?.user?.id || interaction.user?.id || "",
-    platform: "discord",
   });
+
+  return { adapter, processor };
+}
+
+/**
+ * Process Discord transcription request (unified handler)
+ * Handles both cloud URLs and file attachments
+ */
+async function processDiscordTranscription(
+  interaction: APIInteraction,
+  params: {
+    url?: string;
+    fileAttachment?: APIAttachment | null;
+    options: TranscriptionOptions;
+  }
+) {
+  const { adapter, processor } = createDiscordProcessor(interaction);
 
   try {
     // Handle cloud URL
@@ -263,97 +283,41 @@ async function processDiscordTranscription(
     }
   } catch (error) {
     console.error("Discord transcription error:", error);
-    await adapter.sendErrorMessage(error instanceof Error ? error.message : "Unknown error");
+    await adapter.sendErrorMessage(getErrorMessage(error));
   } finally {
     await processor.cleanup();
   }
 }
 
-// Process cloud file for Discord
-async function processCloudTranscription(
-  interaction: APIInteraction,
-  url: string,
-  options: TranscriptionOptions
-) {
-  const channelId = interaction.channel?.id || "";
-  const adapter = createPlatformAdapter("discord", {
-    channelId,
-    interaction,
-  });
 
-  const processor = new TranscriptionProcessor(adapter, {
-    channelId,
-    timestamp: interaction.id,
-    userId: interaction.member?.user?.id || interaction.user?.id || "",
-    platform: "discord",
-  });
-
-  try {
-    await processor.processCloudUrl(url, options);
-  } catch (error) {
-    console.error("Cloud file processing error:", error);
-    await adapter.sendErrorMessage(
-      `クラウドファイルの処理中にエラーが発生しました: ${error instanceof Error ? error.message : "Unknown error"}`
-    );
-  } finally {
-    await processor.cleanup();
-  }
-}
-
-// Process Discord attachment
+/**
+ * Process Discord attachment
+ * Uses TranscriptionProcessor for unified processing
+ */
 async function processDiscordAttachment(
   interaction: APIInteraction,
   attachment: APIAttachment,
   options: TranscriptionOptions
 ) {
-  const channelId = interaction.channel?.id || "";
-  const adapter = createPlatformAdapter("discord", {
-    channelId,
-    interaction,
-  });
-
-  const tempManager = new TempFileManager();
+  const { adapter, processor } = createDiscordProcessor(interaction);
 
   try {
-    // Download the file
-    const fileData = await downloadDiscordFile(attachment.url);
-
-    // Create temporary file
-    const fileInfo = getDiscordFileInfo(attachment.url);
-    const extension = fileInfo.name.split('.').pop() || 'tmp';
-    const tempPath = await tempManager.writeToTempFile(fileData, "discord", extension);
-
-    // Update status
-    await adapter.sendStatusMessage(
-      adapter.formatProcessingMessage(attachment.filename, options)
-    );
-
-    // Import transcribeAudioFile locally to avoid circular dependency
-    const { transcribeAudioFile } = await import("../core/scribe.ts");
-
-    // Transcribe
-    const fileURL = `file://${tempPath}`;
-
-    await transcribeAudioFile({
-      fileURL,
-      fileType: attachment.content_type || "",
-      duration: 0,
-      channelId,
-      timestamp: interaction.id,
-      userId: interaction.member?.user?.id || interaction.user?.id || "",
-      options,
+    // Convert Discord attachment to FileAttachment format
+    const fileAttachment: FileAttachment = {
+      url: attachment.url,
       filename: attachment.filename,
-      tempPath,
-      platform: "discord",
-    });
+      mimeType: attachment.content_type,
+      duration: 0,
+    };
 
-    // Success message is sent from scribe.ts after upload
+    // Use TranscriptionProcessor for unified processing
+    await processor.processAttachments([fileAttachment], options);
   } catch (error) {
     console.error("Discord attachment processing error:", error);
     await adapter.sendErrorMessage(
-      error instanceof Error ? error.message : "Unknown error"
+      getErrorMessage(error)
     );
   } finally {
-    await tempManager.cleanupAll();
+    await processor.cleanup();
   }
 }

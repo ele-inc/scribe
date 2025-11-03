@@ -6,7 +6,7 @@
 import { SlackEvent } from "../core/types.ts";
 import { parseTranscriptionOptions } from "../utils/utils.ts";
 import { textResponse, okResponse, badRequest } from "../utils/http-utils.ts";
-import { 
+import {
   extractMediaInfo
 } from "../services/file-processor.ts";
 import { createPlatformAdapter } from "../adapters/platform-adapter.ts";
@@ -15,6 +15,28 @@ import { TranscriptionProcessor, FileAttachment } from "../services/transcriptio
 // Set to track processed events (with size limit to prevent memory leak)
 const processedEvents = new Set<string>();
 const MAX_PROCESSED_EVENTS = 1000;
+
+/**
+ * Create adapter and processor for Slack events
+ * Centralized helper to reduce duplication
+ */
+function createSlackProcessor(event: SlackEvent): {
+  adapter: ReturnType<typeof createPlatformAdapter>;
+  processor: TranscriptionProcessor;
+} {
+  const adapter = createPlatformAdapter("slack", {
+    channelId: event.channel,
+    threadTimestamp: event.ts,
+  });
+
+  const processor = new TranscriptionProcessor(adapter, {
+    channelId: event.channel,
+    timestamp: event.ts,
+    userId: event.user,
+  });
+
+  return { adapter, processor };
+}
 
 /**
  * Handle Slack app mention events
@@ -45,33 +67,23 @@ export async function handleAppMention(event: SlackEvent) {
 
   // Check if the mention includes files or cloud URLs
   if ((!event.files || event.files.length === 0) && cloudUrls.length === 0) {
-    const adapter = createPlatformAdapter("slack", {
-      channelId: event.channel,
-      threadTimestamp: event.ts,
-    });
+    const { adapter } = createSlackProcessor(event);
     await adapter.sendUsageMessage();
     return;
   }
 
-  // Create adapter and processor
-  const adapter = createPlatformAdapter("slack", {
-    channelId: event.channel,
-    threadTimestamp: event.ts,
-  });
+  // Create adapter and processor once
+  const { processor } = createSlackProcessor(event);
 
-  const processor = new TranscriptionProcessor(adapter, {
-    channelId: event.channel,
-    timestamp: event.ts,
-    userId: event.user,
-    platform: "slack",
-  });
+  // Process cloud URLs and file attachments using the same processor
+  const processPromises: Promise<void>[] = [];
 
-  // Process cloud URLs first
+  // Process cloud URLs
   if (cloudUrls.length > 0) {
-    // Process asynchronously without blocking response
-    processor.processTextInput(event.text || "", options)
-      .catch(console.error)
-      .finally(() => processor.cleanup());
+    processPromises.push(
+      processor.processTextInput(event.text || "", options)
+        .catch(console.error)
+    );
   }
 
   // Process regular Slack files
@@ -83,30 +95,15 @@ export async function handleAppMention(event: SlackEvent) {
       duration: file.duration,
     }));
 
-    // If processor wasn't created for cloud URLs, create it now
-    if (cloudUrls.length === 0) {
-      const adapter = createPlatformAdapter("slack", {
-        channelId: event.channel,
-        threadTimestamp: event.ts,
-      });
-
-      const processor = new TranscriptionProcessor(adapter, {
-        channelId: event.channel,
-        timestamp: event.ts,
-        userId: event.user,
-        platform: "slack",
-      });
-
-      // Process asynchronously without blocking response
+    processPromises.push(
       processor.processAttachments(attachments, options)
         .catch(console.error)
-        .finally(() => processor.cleanup());
-    } else {
-      // Use existing processor
-      processor.processAttachments(attachments, options)
-        .catch(console.error);
-    }
+    );
   }
+
+  // Wait for all processing to complete, then cleanup
+  Promise.all(processPromises)
+    .finally(() => processor.cleanup());
 }
 
 /**

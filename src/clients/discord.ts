@@ -212,22 +212,3 @@ export function getDiscordFileInfo(url: string): { name: string; extension: stri
     extension,
   };
 }
-
-// Format Discord message with options
-export function formatDiscordMessage(
-  transcript: string,
-  _options: {
-    showTimestamp?: boolean;
-    diarize?: boolean;
-  }
-): string {
-  // Discord has a 2000 character limit for messages
-  const MAX_LENGTH = 1900; // Leave some buffer
-
-  if (transcript.length <= MAX_LENGTH) {
-    return transcript;
-  }
-
-  // Truncate and add indicator
-  return transcript.substring(0, MAX_LENGTH) + "\n\n... (完全な文字起こしはファイルを参照してください)";
-}

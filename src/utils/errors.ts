@@ -120,13 +120,27 @@ export function handleHttpError(error: Error): Response {
 }
 
 /**
+ * Extract error message from unknown error type
+ * Handles both Error objects and other types safely
+ */
+export function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  return 'Unknown error';
+}
+
+/**
  * Safe error message for user-facing responses
  */
 export function getSafeErrorMessage(error: Error): string {
   if (error instanceof AppError) {
     return error.message;
   }
-  
+
   // Don't expose internal error details to users
   return 'An unexpected error occurred. Please try again later.';
 }
@@ -140,18 +154,18 @@ export async function retryWithBackoff<T>(
   initialDelay: number = 1000
 ): Promise<T> {
   let lastError: Error | undefined;
-  
+
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await fn();
     } catch (error) {
       lastError = error as Error;
-      
+
       // Don't retry on validation or authentication errors
       if (error instanceof ValidationError || error instanceof AuthenticationError) {
         throw error;
       }
-      
+
       if (i < maxRetries - 1) {
         const delay = initialDelay * Math.pow(2, i);
         console.log(`Retry attempt ${i + 1}/${maxRetries} after ${delay}ms`);
@@ -159,6 +173,6 @@ export async function retryWithBackoff<T>(
       }
     }
   }
-  
+
   throw lastError;
 }
