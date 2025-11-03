@@ -10,6 +10,7 @@ interface CliOptions extends TranscriptionOptions {
   output?: string;
   format: "text" | "json";
   noSave?: boolean;
+  summarize?: boolean;
 }
 
 /**
@@ -17,7 +18,7 @@ interface CliOptions extends TranscriptionOptions {
  */
 function parseArgs(): { filePath: string; options: CliOptions } {
   const args = Deno.args;
-  
+
   // Show help if no arguments or help flag
   if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
     printHelp();
@@ -56,8 +57,8 @@ function parseArgs(): { filePath: string; options: CliOptions } {
   if (speakerNamesIndex !== -1 && args[speakerNamesIndex + 1]) {
     options.speakerNames = args[speakerNamesIndex + 1]
       .split(",")
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
   }
 
   // Parse output file
@@ -92,7 +93,7 @@ ElevenLabs Transcription CLI
 Usage: deno run --allow-all src/cli.ts [options] <file>
 
 Arguments:
-  <file>                Path to audio/video file to transcribe, or Dropbox URL
+  <file>                Path to audio/video file to transcribe, or supported URL (Google Drive/Dropbox/YouTube)
 
 Options:
   -h, --help           Show this help message
@@ -100,7 +101,7 @@ Options:
   -f, --format <type>  Output format: text or json (default: text)
   --no-save            Output to stdout instead of saving to file
   --no-summarize       Skip generating a summary after transcription
-  
+
 Transcription Options:
   --no-diarize         Disable speaker identification (default: enabled)
   --num-speakers <n>   Number of speakers (default: auto-detect)
@@ -122,8 +123,8 @@ Examples:
   # Disable speaker diarization
   deno run --allow-all src/cli.ts --no-diarize recording.wav
 
-  # Transcribe from Dropbox URL
-  deno run --allow-all src/cli.ts "https://www.dropbox.com/s/..." --speaker-names "Alice,Bob"
+  # Transcribe from a supported URL (Dropbox / Google Drive / YouTube)
+  deno run --allow-all src/cli.ts "https://www.youtube.com/watch?v=xxxxxxx" --speaker-names "Alice,Bob"
 
 Note: Video files (mp4, mkv, mov, etc.) will be automatically converted to audio before transcription.
 `);
@@ -133,11 +134,12 @@ Note: Video files (mp4, mkv, mov, etc.) will be automatically converted to audio
  * Main function
  */
 async function main() {
+  let tempFilePath: string | undefined;
+
   try {
     const { filePath, options } = parseArgs();
 
     let actualFilePath = filePath;
-    let tempFilePath: string | undefined;
     let filename = filePath;
 
     // Check if input is a URL (specifically a supported cloud URL)
@@ -145,7 +147,9 @@ async function main() {
       console.log(`Detected supported cloud URL: ${filePath}`);
       console.log("Downloading file...");
 
-      const downloadResult = await cloudServiceManager.downloadFromUrl(filePath);
+      const downloadResult = await cloudServiceManager.downloadFromUrl(
+        filePath,
+      );
 
       if (!downloadResult.success) {
         console.error(`Error downloading file: ${downloadResult.error}`);
@@ -153,7 +157,9 @@ async function main() {
       }
 
       if (!downloadResult.tempPath || !downloadResult.metadata) {
-        console.error("Error: Download succeeded but no file path or metadata returned");
+        console.error(
+          "Error: Download succeeded but no file path or metadata returned",
+        );
         Deno.exit(1);
       }
 
@@ -174,8 +180,12 @@ async function main() {
     // Check if API key is loaded
     const apiKey = Deno.env.get("ELEVENLABS_API_KEY");
     if (!apiKey) {
-      console.error("Error: ELEVENLABS_API_KEY not found in environment variables");
-      console.error("Please ensure .env file exists and contains ELEVENLABS_API_KEY");
+      console.error(
+        "Error: ELEVENLABS_API_KEY not found in environment variables",
+      );
+      console.error(
+        "Please ensure .env file exists and contains ELEVENLABS_API_KEY",
+      );
       Deno.exit(1);
     }
 
@@ -200,11 +210,12 @@ async function main() {
 
     // Add filename header to transcript
     const baseFilename = filename.split("/").pop() || filename;
-    const finalTranscript = createTranscriptionHeader(baseFilename) + result.transcript;
+    const finalTranscript = createTranscriptionHeader(baseFilename) +
+      result.transcript;
 
     // Determine output path
     let outputPath = options.output;
-    
+
     // If no output specified and not --no-save, create default output path
     if (!outputPath && !options.noSave) {
       // Create transcripts directory if it doesn't exist
@@ -214,12 +225,26 @@ async function main() {
       } catch {
         // Directory might already exist
       }
-      
+
       // Generate timestamp for filename
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, -5);
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(
+        0,
+        -5,
+      );
       const cleanedFilename = baseFilename.replace(/\.[^/.]+$/, ""); // Remove extension
       const extension = options.format === "json" ? "json" : "txt";
-      outputPath = `${transcriptsDir}/${cleanedFilename}_${timestamp}.${extension}`;
+      outputPath =
+        `${transcriptsDir}/${cleanedFilename}_${timestamp}.${extension}`;
+
+      // Check if a file with the same name already exists (shouldn't happen, but let's be safe)
+      try {
+        const existingStat = await Deno.stat(outputPath);
+        if (existingStat.isFile) {
+          console.warn(`Warning: Output file already exists: ${outputPath}`);
+        }
+      } catch {
+        // File doesn't exist yet, which is expected
+      }
     }
 
     // Output result
@@ -230,9 +255,9 @@ async function main() {
         languageCode: result.languageCode,
         ...(result.words ? { words: result.words } : {}),
       };
-      
+
       const jsonString = JSON.stringify(jsonOutput, null, 2);
-      
+
       if (outputPath) {
         await Deno.writeTextFile(outputPath, jsonString);
         console.log(`\nTranscription saved to: ${outputPath}`);
@@ -257,11 +282,17 @@ async function main() {
       try {
         await cloudServiceManager.cleanup();
       } catch (cleanupError) {
-        console.warn("Warning: Failed to clean up temporary files:", cleanupError);
+        console.warn(
+          "Warning: Failed to clean up temporary files:",
+          cleanupError,
+        );
       }
     }
   } catch (error) {
-    console.error("Error during transcription:", error instanceof Error ? error.message : error);
+    console.error(
+      "Error during transcription:",
+      error instanceof Error ? error.message : error,
+    );
     if (error instanceof Error && error.stack) {
       console.error("Stack trace:", error.stack);
     }
@@ -271,7 +302,10 @@ async function main() {
       try {
         await cloudServiceManager.cleanup();
       } catch (cleanupError) {
-        console.warn("Warning: Failed to clean up temporary files:", cleanupError);
+        console.warn(
+          "Warning: Failed to clean up temporary files:",
+          cleanupError,
+        );
       }
     }
 
