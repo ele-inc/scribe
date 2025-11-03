@@ -112,6 +112,55 @@ export function replaceSpeakerLabels(
   return result;
 }
 
+const SUMMARY_TRANSCRIPT_CHAR_LIMIT = 8000;
+
+export async function summarizeTranscript(transcript: string): Promise<string> {
+  const client = getOpenAIClient();
+
+  const isTruncated = transcript.length > SUMMARY_TRANSCRIPT_CHAR_LIMIT;
+  const truncatedTranscript = isTruncated
+    ? transcript.slice(0, SUMMARY_TRANSCRIPT_CHAR_LIMIT)
+    : transcript;
+
+  const prompt = `以下の文字起こしを読み、重要なポイントを3〜5個の箇条書きで日本語要約してください。
+
+# 出力要件
+- 箇条書きの行頭には「・」を使用してください。
+- 具体的な数値や決定事項があれば含めてください。
+- 不明点や次のアクションがあれば明記してください。
+- 情報量が多くても、必要に応じて2段落程度に収めてください。
+
+# 文字起こし${isTruncated ? "（一部のみ抜粋）" : ""}
+${truncatedTranscript}`;
+
+  try {
+    const response = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content:
+            "あなたは会議や打ち合わせの要点を簡潔にまとめる日本語アシスタントです。重要事項を漏れなく整理します。",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    });
+
+    const summary = response.choices[0].message.content?.trim();
+    if (!summary) {
+      throw new Error("OpenAI API returned empty summary");
+    }
+
+    return summary;
+  } catch (error) {
+    console.error("Error summarizing transcript:", error);
+    throw error;
+  }
+}
+
 function extractSpeakerLabels(transcript: string): string[] {
   const labels = new Set<string>();
   // Match labels that appear at the start of a line (optionally after a timestamp), followed by a colon

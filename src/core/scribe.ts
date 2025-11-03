@@ -17,6 +17,7 @@ import {
   sendDiscordMessage,
   uploadTranscriptToDiscord,
 } from "../clients/discord.ts";
+import { summarizeTranscript } from "../clients/openai-client.ts";
 import { transcribeCore } from "./transcribe-core.ts";
 import { TempFileManager } from "../services/temp-file-manager.ts";
 
@@ -38,6 +39,26 @@ async function uploadTranscript(
     await uploadTranscriptToSlack(transcript, channelId, timestamp, message);
   } else if (platform === "discord") {
     await uploadTranscriptToDiscord(transcript, channelId, message);
+  }
+}
+
+async function sendTranscriptSummary(
+  transcript: string,
+  channelId: string,
+  threadTimestamp: string,
+  platform: "slack" | "discord",
+) {
+  try {
+    const summary = await summarizeTranscript(transcript);
+    const summaryMessage = `📝 要約\n${summary}`;
+
+    if (platform === "slack") {
+      await sendSlackMessage(channelId, summaryMessage, threadTimestamp);
+    } else {
+      await sendDiscordMessage(channelId, summaryMessage);
+    }
+  } catch (error) {
+    console.error("Failed to generate or send transcript summary:", error);
   }
 }
 
@@ -125,6 +146,12 @@ export async function transcribeAudioFile({
         : transcript;
 
       await uploadTranscript(finalTranscript, channelId, timestamp, filename, platform);
+      await sendTranscriptSummary(
+        finalTranscript,
+        channelId,
+        timestamp,
+        platform,
+      );
     } else {
       console.log("No transcript generated, sending error message");
       if (platform === "slack") {
