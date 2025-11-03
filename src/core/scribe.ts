@@ -146,12 +146,16 @@ export async function transcribeAudioFile({
         : transcript;
 
       await uploadTranscript(finalTranscript, channelId, timestamp, filename, platform);
-      await sendTranscriptSummary(
-        finalTranscript,
-        channelId,
-        timestamp,
-        platform,
-      );
+      if (options.summarize !== false) {
+        await sendTranscriptSummary(
+          finalTranscript,
+          channelId,
+          timestamp,
+          platform,
+        );
+      } else {
+        console.log("Summary generation skipped by --no-summarize option");
+      }
     } else {
       console.log("No transcript generated, sending error message");
       if (platform === "slack") {

@@ -39,6 +39,7 @@ function parseArgs(): { filePath: string; options: CliOptions } {
     tagAudioEvents: !args.includes("--no-audio-events"),
     format: "text",
     noSave: args.includes("--no-save"),
+    summarize: !args.includes("--no-summarize"),
   };
 
   // Parse speaker count
@@ -98,6 +99,7 @@ Options:
   -o, --output <file>  Output file path (default: transcripts/<filename>_<timestamp>.txt)
   -f, --format <type>  Output format: text or json (default: text)
   --no-save            Output to stdout instead of saving to file
+  --no-summarize       Skip generating a summary after transcription
   
 Transcription Options:
   --no-diarize         Disable speaker identification (default: enabled)
@@ -184,6 +186,7 @@ async function main() {
       speakerNames: options.speakerNames,
       showTimestamp: options.showTimestamp,
       tagAudioEvents: options.tagAudioEvents,
+      summarize: options.summarize,
       format: options.format,
     });
 

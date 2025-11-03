@@ -29,6 +29,7 @@ export const parseTranscriptionOptions = (text: string = ""): TranscriptionOptio
     diarize,
     showTimestamp: !text.includes("--no-timestamp"),
     tagAudioEvents: !text.includes("--no-audio-events"),
+    summarize: !text.includes("--no-summarize"),
     ...(numSpeakers ? { numSpeakers } : {}),
     ...(speakerNames ? { speakerNames } : {}),
   };
