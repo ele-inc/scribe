@@ -51,7 +51,61 @@ export class TranscriptionProcessor {
       return;
     }
 
+    // Check all URLs to see if any are media files
+    const mediaUrls: string[] = [];
+    const nonMediaUrls: string[] = [];
+    let hasGoogleDocs = false;
+
     for (const url of cloudUrls) {
+      const service = cloudServiceRegistry.getServiceForUrl(url);
+      if (!service) {
+        continue;
+      }
+
+      const fileId = service.extractFileId(url);
+      if (!fileId) {
+        continue;
+      }
+
+      try {
+        const metadata = await service.getFileMetadata(fileId);
+        if (service.isMediaFile(metadata.mimeType)) {
+          mediaUrls.push(url);
+        } else {
+          nonMediaUrls.push(url);
+          // Check if it's a Google Docs file
+          const googleDocsTypes = [
+            "application/vnd.google-apps.document",
+            "application/vnd.google-apps.spreadsheet",
+            "application/vnd.google-apps.presentation",
+            "application/vnd.google-apps.drawing",
+            "application/vnd.google-apps.form",
+            "application/vnd.google-apps.map",
+            "application/vnd.google-apps.site",
+            "application/vnd.google-apps.script",
+            "application/vnd.google-apps.jamboard",
+          ];
+          if (googleDocsTypes.includes(metadata.mimeType)) {
+            hasGoogleDocs = true;
+          }
+        }
+      } catch (error) {
+        console.error(`Error getting metadata for ${url}:`, error);
+        // If we can't get metadata, try to process it anyway
+        mediaUrls.push(url);
+      }
+    }
+
+    // If no media files and only Google Docs URLs, send error message
+    if (mediaUrls.length === 0 && hasGoogleDocs) {
+      await this.adapter.sendErrorMessage(
+        "音声または動画ファイルを指定してください。GoogleドキュメントのURLは処理できません。"
+      );
+      return;
+    }
+
+    // Process only media file URLs
+    for (const url of mediaUrls) {
       await this.processCloudUrl(url, options);
     }
   }
@@ -80,8 +134,16 @@ export class TranscriptionProcessor {
         return;
       }
 
-      // Get metadata and send status message once with filename and options
+      // Get metadata first to check if it's a media file
       const metadata = await service.getFileMetadata(fileId);
+
+      // Check if file is a media file before sending status message
+      if (!service.isMediaFile(metadata.mimeType)) {
+        // Silently skip non-media files (like Google Docs) without sending a message
+        return;
+      }
+
+      // Send status message only for media files
       await this.adapter.sendStatusMessage(
         this.adapter.formatProcessingMessage(metadata.filename, options),
       );
