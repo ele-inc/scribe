@@ -21,15 +21,15 @@ fi
 gcloud run deploy scribe-bot \
   --source . \
   --region=asia-northeast1 \
-  --memory=32Gi \
-  --cpu=8 \
+  --memory=16Gi \
+  --cpu=4 \
   --timeout=3600 \
   --no-allow-unauthenticated \
   --execution-environment=gen2 \
   --cpu-boost \
   --no-cpu-throttling \
   --min-instances=0 \
-  --max-instances=3 \
+  --max-instances=1 \
   --port=8080 \
   --set-env-vars="$ENV_VARS"
 
