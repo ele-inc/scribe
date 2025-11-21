@@ -2,7 +2,7 @@ import { TranscriptionOptions } from "../core/types.ts";
 import { formatOptionsText } from "../services/file-processor.ts";
 import { sendSlackMessage, uploadTranscriptToSlack, downloadSlackFileToPath } from "../clients/slack.ts";
 import { editInteractionReply, sendDiscordMessage, uploadTranscriptToDiscord, downloadDiscordFile } from "../clients/discord.ts";
-import { getDiscordUsageMessage, getSlackUsageMessage } from "../utils/messages.ts";
+import { getUsageMessage } from "../utils/messages.ts";
 // @ts-ignore: Types are provided in the deployment environment
 import { APIInteraction } from "npm:discord-api-types@0.37.100/v10";
 
@@ -52,7 +52,7 @@ export class SlackAdapter implements PlatformAdapter {
   }
 
   async sendUsageMessage(): Promise<void> {
-    await this.sendStatusMessage(getSlackUsageMessage());
+    await this.sendStatusMessage(getUsageMessage());
   }
 
   formatProcessingMessage(filename: string, options: TranscriptionOptions): string {
@@ -97,7 +97,7 @@ export class DiscordAdapter implements PlatformAdapter {
   }
 
   async sendUsageMessage(): Promise<void> {
-    await this.sendStatusMessage(getDiscordUsageMessage());
+    await this.sendStatusMessage(getUsageMessage());
   }
 
   formatProcessingMessage(filename: string, options: TranscriptionOptions): string {

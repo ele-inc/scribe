@@ -34,7 +34,13 @@ export function getUsageMessage(): string {
 • \`--speaker-names <名前1,名前2>\`: 話者名を指定
 • \`--no-timestamp\`: タイムスタンプ非表示
 • \`--no-audio-events\`: 音声イベント非表示
-• \`--no-summarize\`: 要約スキップ`;
+• \`--no-summarize\`: 要約スキップ
+
+**使用例**
+• \`--num-speakers 3\`
+• \`--speaker-names 田中,山田 --no-timestamp\`
+• \`https://www.youtube.com/watch?v=xxxxx\`
+• \`https://utage-system.com/video/xxxxx\``;
 }
 
 /**
@@ -43,8 +49,3 @@ export function getUsageMessage(): string {
 export function getUnsupportedContentMessage(): string {
   return `音声/動画ファイルまたは対応URL(${getSupportedServicesList()})を送信してください。`;
 }
-
-// Backward compatibility aliases
-export const getDiscordUsageMessage = getUsageMessage;
-export const getSlackUsageMessage = getUsageMessage;
-export const getDiscordUnsupportedContentMessage = getUnsupportedContentMessage;

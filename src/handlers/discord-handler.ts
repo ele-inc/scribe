@@ -27,7 +27,7 @@ import {
 import { createPlatformAdapter } from "../adapters/platform-adapter.ts";
 import { TranscriptionProcessor, FileAttachment } from "../services/transcription-processor.ts";
 import { getErrorMessage } from "../utils/errors.ts";
-import { getDiscordUsageMessage, getDiscordUnsupportedContentMessage } from "../utils/messages.ts";
+import { getUsageMessage, getUnsupportedContentMessage } from "../utils/messages.ts";
 
 /**
  * Execute async function in background without blocking response
@@ -123,7 +123,7 @@ function handleTranscribeCommand(
 
   // If neither URL nor file is provided
   if (!urlOption && !fileOption) {
-    return replyToInteraction(getDiscordUsageMessage(), true);
+    return replyToInteraction(getUsageMessage(), true);
   }
 
   // Defer the reply immediately (Discord requires response within 3 seconds)
@@ -170,7 +170,7 @@ function handleMessageCommand(
   const { cloudUrls } = extractMediaInfo(message.content || "");
 
   if ((!audioVideoAttachments || audioVideoAttachments.length === 0) && cloudUrls.length === 0) {
-    return replyToInteraction(getDiscordUnsupportedContentMessage(), true);
+    return replyToInteraction(getUnsupportedContentMessage(), true);
   }
 
   // Defer the reply immediately
