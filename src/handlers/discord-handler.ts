@@ -123,7 +123,7 @@ function handleTranscribeCommand(
   // If neither URL nor file is provided
   if (!urlOption && !fileOption) {
     const usageMessage = `**🎙️概要**
-音声・動画ファイルやGoogle DriveやDropbox、YouTubeのURLから文字起こしを行います。
+音声・動画ファイルやGoogle DriveやDropbox、YouTube、HLS(.m3u8)のURLから文字起こしを行います。
 チャット欄に/transcribeと入力で使用開始。
 
 **⚙️オプション**

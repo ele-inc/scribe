@@ -53,7 +53,7 @@ export class SlackAdapter implements PlatformAdapter {
   async sendUsageMessage(): Promise<void> {
     const usageMessage = `📝 *使い方*\n\n` +
       `音声または動画ファイルをアップロードしてメンションするか、\n` +
-      `Google DriveやDropbox、YouTubeのリンクを含めてメンションしてください。\n\n` +
+      `Google DriveやDropbox、YouTube、HLS(.m3u8)のリンクを含めてメンションしてください。\n\n` +
       `*オプション:*\n` +
       `• \`--no-diarize\`: 話者識別を無効化\n` +
       `• \`--no-timestamp\`: タイムスタンプを非表示\n` +
@@ -113,7 +113,7 @@ export class DiscordAdapter implements PlatformAdapter {
 
   async sendUsageMessage(): Promise<void> {
     const usageMessage = `**🎙️概要**
-音声・動画ファイルやGoogle DriveやDropbox、YouTubeのURLから文字起こしを行います。
+音声・動画ファイルやGoogle DriveやDropbox、YouTube、HLS(.m3u8)のURLから文字起こしを行います。
 チャット欄に/transcribeと入力で使用開始。
 
 **⚙️オプション**
