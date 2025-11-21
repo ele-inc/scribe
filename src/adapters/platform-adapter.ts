@@ -2,6 +2,7 @@ import { TranscriptionOptions } from "../core/types.ts";
 import { formatOptionsText } from "../services/file-processor.ts";
 import { sendSlackMessage, uploadTranscriptToSlack, downloadSlackFileToPath } from "../clients/slack.ts";
 import { editInteractionReply, sendDiscordMessage, uploadTranscriptToDiscord, downloadDiscordFile } from "../clients/discord.ts";
+import { getDiscordUsageMessage, getSlackUsageMessage } from "../utils/messages.ts";
 // @ts-ignore: Types are provided in the deployment environment
 import { APIInteraction } from "npm:discord-api-types@0.37.100/v10";
 
@@ -51,23 +52,7 @@ export class SlackAdapter implements PlatformAdapter {
   }
 
   async sendUsageMessage(): Promise<void> {
-    const usageMessage = `📝 *使い方*\n\n` +
-      `音声または動画ファイルをアップロードしてメンションするか、\n` +
-      `Google DriveやDropbox、YouTube、HLS(.m3u8)のリンクを含めてメンションしてください。\n\n` +
-      `*オプション:*\n` +
-      `• \`--no-diarize\`: 話者識別を無効化\n` +
-      `• \`--no-timestamp\`: タイムスタンプを非表示\n` +
-      `• \`--no-audio-events\`: 音声イベント（拍手、音楽など）のタグを無効化\n` +
-      `• \`--no-summarize\`: 文字起こし後の要約送信をスキップ\n` +
-      `• \`--num-speakers <数>\`: 話者数を指定（デフォルト: 2）\n` +
-      `• \`--speaker-names "<名前1>,<名前2>"\`: 話者名を指定（AIが自動判定）\n\n` +
-      `*使用例:*\n` +
-      `@文字起こしKUN --no-timestamp --num-speakers 3\n` +
-      `@文字起こしKUN --speaker-names "田中,山田"\n` +
-      `@文字起こしKUN https://drive.google.com/file/d/xxxxx/view\n` +
-      `@文字起こしKUN https://www.youtube.com/watch?v=xxxxxxx`;
-
-    await this.sendStatusMessage(usageMessage);
+    await this.sendStatusMessage(getSlackUsageMessage());
   }
 
   formatProcessingMessage(filename: string, options: TranscriptionOptions): string {
@@ -112,23 +97,7 @@ export class DiscordAdapter implements PlatformAdapter {
   }
 
   async sendUsageMessage(): Promise<void> {
-    const usageMessage = `**🎙️概要**
-音声・動画ファイルやGoogle DriveやDropbox、YouTube、HLS(.m3u8)のURLから文字起こしを行います。
-チャット欄に/transcribeと入力で使用開始。
-
-**⚙️オプション**
-• \`--no-diarize\`: 話者識別をオフ ※話者が一人の場合には使用推奨
-• \`--num-speakers <数>\`: 話者数を指定（デフォルト:2）※指定することで話者識別の精度が向上します
-• \`--speaker-names 名前1,名前2\`: 話者名を設定（順不同、人数分必要）
-• \`--no-timestamp\`: タイムスタンプを非表示
-• \`--no-audio-events\`: 音声イベントを非表示
-• \`--no-summarize\`: 文字起こし後の要約送信をスキップ
-
-**⚠️注意点**
-•「アプリケーションが応答しませんでした」と表示されても、Discordの仕様によるもので処理は実行されています。
-•Google DriveやYouTubeなどのURLからの文字起こしは、元の公開設定に依存します。`;
-
-    await this.sendStatusMessage(usageMessage);
+    await this.sendStatusMessage(getDiscordUsageMessage());
   }
 
   formatProcessingMessage(filename: string, options: TranscriptionOptions): string {
