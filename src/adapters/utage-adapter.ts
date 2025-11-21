@@ -1,7 +1,6 @@
 import { BaseCloudService, CloudFileMetadata } from "../services/cloud-service.ts";
 import {
   downloadUtageAudioToPath,
-  extractUtageVideoId,
   getUtageFileMetadata,
   isUtageUrl,
 } from "../clients/utage.ts";
