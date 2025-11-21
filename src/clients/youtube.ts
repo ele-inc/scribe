@@ -46,6 +46,10 @@ async function ensureYtDlpAvailable(): Promise<void> {
 }
 
 function createYouTubeWatchUrl(videoId: string): string {
+  // If videoId is a full URL (for Loom and other sites), return as-is
+  if (videoId.startsWith("http://") || videoId.startsWith("https://")) {
+    return videoId;
+  }
   return `https://www.youtube.com/watch?v=${videoId}`;
 }
 
@@ -158,8 +162,11 @@ export function isYouTubeUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
     const hostname = parsed.hostname.toLowerCase();
-    return hostname.includes("youtube.com") || hostname === "youtu.be" ||
-      hostname.endsWith("youtube-nocookie.com");
+    // Support YouTube and other yt-dlp compatible sites like Loom
+    return hostname.includes("youtube.com") ||
+           hostname === "youtu.be" ||
+           hostname.endsWith("youtube-nocookie.com") ||
+           hostname.includes("loom.com");
   } catch {
     return false;
   }
@@ -169,6 +176,11 @@ export function extractYouTubeVideoId(url: string): string | null {
   try {
     const parsed = new URL(url);
     const hostname = parsed.hostname.toLowerCase();
+
+    // For Loom and other yt-dlp sites, return the full URL
+    if (hostname.includes("loom.com")) {
+      return url;
+    }
 
     if (hostname === "youtu.be") {
       const id = parsed.pathname.replace(/^\//, "");
