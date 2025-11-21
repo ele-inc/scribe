@@ -18,7 +18,13 @@
       "Bash(deno check:*)",
       "Bash(deno lint:*)",
       "Bash(mv:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(yt-dlp:*)",
+      "Bash(curl:*)",
+      "Bash(deno run:*)",
+      "Bash(deno eval:*)"
     ],
     "deny": [],
     "ask": []

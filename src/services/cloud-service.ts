@@ -8,6 +8,7 @@ export interface CloudFileMetadata {
   filename: string;
   mimeType: string;
   size?: number;
+  duration?: number;
 }
 
 export interface CloudDownloadResult {

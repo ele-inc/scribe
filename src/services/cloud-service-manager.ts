@@ -8,6 +8,8 @@ import { GoogleDriveAdapter } from "../adapters/google-drive-adapter.ts";
 import { TempFileManager } from "./temp-file-manager.ts";
 import { DropboxAdapter } from "../adapters/dropbox-adapter.ts";
 import { YouTubeAdapter } from "../adapters/youtube-adapter.ts";
+import { HlsAdapter } from "../adapters/hls-adapter.ts";
+import { UtageAdapter } from "../adapters/utage-adapter.ts";
 import { getErrorMessage } from "../utils/errors.ts";
 
 export class CloudServiceManager {
@@ -28,6 +30,8 @@ export class CloudServiceManager {
     // Future services can be registered here:
     cloudServiceRegistry.register(new DropboxAdapter());
     cloudServiceRegistry.register(new YouTubeAdapter());
+    cloudServiceRegistry.register(new UtageAdapter());
+    cloudServiceRegistry.register(new HlsAdapter());
     // cloudServiceRegistry.register(new OneDriveService());
     // cloudServiceRegistry.register(new BoxService());
   }

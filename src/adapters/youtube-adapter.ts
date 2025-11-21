@@ -7,7 +7,7 @@ import {
 } from "../clients/youtube.ts";
 
 export class YouTubeAdapter extends BaseCloudService {
-  readonly name = "YouTube";
+  readonly name = "YouTube/Loom";
 
   isValidUrl(url: string): boolean {
     return isYouTubeUrl(url);

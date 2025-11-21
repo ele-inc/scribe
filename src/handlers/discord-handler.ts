@@ -27,6 +27,7 @@ import {
 import { createPlatformAdapter } from "../adapters/platform-adapter.ts";
 import { TranscriptionProcessor, FileAttachment } from "../services/transcription-processor.ts";
 import { getErrorMessage } from "../utils/errors.ts";
+import { getUsageMessage, getUnsupportedContentMessage } from "../utils/messages.ts";
 
 /**
  * Execute async function in background without blocking response
@@ -122,22 +123,7 @@ function handleTranscribeCommand(
 
   // If neither URL nor file is provided
   if (!urlOption && !fileOption) {
-    const usageMessage = `**🎙️概要**
-音声・動画ファイルやGoogle DriveやDropbox、YouTubeのURLから文字起こしを行います。
-チャット欄に/transcribeと入力で使用開始。
-
-**⚙️オプション**
-• \`--no-diarize\`: 話者識別をオフ ※話者が一人の場合には使用推奨
-• \`--num-speakers <数>\`: 話者数を指定（デフォルト:2）※指定することで話者識別の精度が向上します
-• \`--speaker-names 名前1,名前2\`: 話者名を設定（順不同、人数分必要）
-• \`--no-timestamp\`: タイムスタンプを非表示
-• \`--no-audio-events\`: 音声イベントを非表示
-
-**⚠️注意点**
-•「アプリケーションが応答しませんでした」と表示されても、Discordの仕様によるもので処理は実行されています。
-•Google DriveやYouTubeなどのURLからの文字起こしは、元の公開設定に依存します。`;
-
-    return replyToInteraction(usageMessage, true);
+    return replyToInteraction(getUsageMessage(), true);
   }
 
   // Defer the reply immediately (Discord requires response within 3 seconds)
@@ -184,10 +170,7 @@ function handleMessageCommand(
   const { cloudUrls } = extractMediaInfo(message.content || "");
 
   if ((!audioVideoAttachments || audioVideoAttachments.length === 0) && cloudUrls.length === 0) {
-    return replyToInteraction(
-      "このメッセージには音声/動画ファイルまたはクラウドのURL(Google Drive/Dropbox/YouTube)が含まれていません。",
-      true,
-    );
+    return replyToInteraction(getUnsupportedContentMessage(), true);
   }
 
   // Defer the reply immediately
