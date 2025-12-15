@@ -1,4 +1,4 @@
-import OpenAI from "npm:openai@4.74.0";
+import OpenAI from "npm:openai";
 
 let openaiClient: OpenAI | null = null;
 

@@ -1,5 +1,5 @@
-import { JWT } from "npm:google-auth-library@9.15.0";
-import { google } from "npm:googleapis@144.0.0";
+import { JWT } from "npm:google-auth-library";
+import { google } from "npm:googleapis";
 import { config } from "../core/config.ts";
 
 // Types for Google Drive file metadata

@@ -1,4 +1,4 @@
-FROM denoland/deno:2.4.5
+FROM denoland/deno:latest
 
 # Install ffmpeg for video to audio conversion and yt-dlp for YouTube downloads
 RUN apt-get update && apt-get install -y ffmpeg yt-dlp && rm -rf /var/lib/apt/lists/*

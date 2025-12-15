@@ -1,4 +1,4 @@
-import { ElevenLabsClient } from "npm:elevenlabs@1.59.0";
+import { ElevenLabsClient } from "npm:elevenlabs";
 import {
   TranscriptionOptions,
   WordItem,
