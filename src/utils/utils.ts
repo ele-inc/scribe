@@ -198,7 +198,7 @@ export const convertVideoToAudio = async (
         "-ar",
         "16000", // 16kHz
         "-af",
-        "highpass=f=60,loudnorm=I=-16:TP=-1.5:LRA=11", // ノイズカット＆正規化
+        "highpass=f=60", // ノイズカット（loudnorm外してテスト中）
         "-c:a",
         "pcm_s16le", // 音質劣化のないWAV形式
         outputPath,
