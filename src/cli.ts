@@ -141,6 +141,7 @@ async function main() {
 
     let actualFilePath = filePath;
     let filename = filePath;
+    let mimeType: string | undefined;
 
     // Check if input is a URL (specifically a supported cloud URL)
     if (cloudServiceManager.isSupportedUrl(filePath)) {
@@ -166,7 +167,8 @@ async function main() {
       actualFilePath = downloadResult.tempPath;
       tempFilePath = downloadResult.tempPath;
       filename = downloadResult.metadata.filename;
-      console.log(`File downloaded successfully: ${filename}`);
+      mimeType = downloadResult.metadata.mimeType;
+      console.log(`File downloaded successfully: ${filename} (${mimeType})`);
     } else {
       // Check if local file exists
       try {
@@ -200,8 +202,8 @@ async function main() {
       format: options.format,
     });
 
-    // Perform transcription
-    const result = await transcribeFile(actualFilePath, options);
+    // Perform transcription (pass mimeType if available from cloud service)
+    const result = await transcribeFile(actualFilePath, options, mimeType);
 
     if (!result.transcript) {
       console.error("Error: No transcript was generated");

@@ -5,16 +5,16 @@ import {
 import {
   getFileExtensionFromMime,
   createTranscriptionHeader,
-  convertVideoToAudio,
-  isVideoFile,
 } from "../utils/utils.ts";
 import { summarizeTranscript } from "../clients/openai-client.ts";
 import { PlatformAdapter } from "../adapters/platform-adapter.ts";
-import { transcribeCore } from "./transcribe-core.ts";
+import { transcribeFile } from "./transcribe-core.ts";
 import { TempFileManager } from "../services/temp-file-manager.ts";
 
-
-
+/**
+ * Transcribe audio/video file from Slack/Discord
+ * Uses the unified transcribeFile function for processing
+ */
 export async function transcribeAudioFile({
   fileURL,
   fileType,
@@ -44,8 +44,6 @@ export async function transcribeAudioFile({
   let languageCode: string | null = null;
   const errorMsg: string | null = null;
   let tempFilePath: string | null = null;
-  let audioFilePath: string | null = null;
-  let originalVideoPath: string | null = null;
   const tempManager = new TempFileManager();
 
   console.log("fileURL", fileURL, "scribe called");
@@ -66,32 +64,14 @@ export async function transcribeAudioFile({
       await adapter.downloadFile(fileURL, tempFilePath);
     }
 
-    // Check if the file is a video and convert to MP3 if needed
-    if (isVideoFile(fileType)) {
-      console.log("Detected video file, converting to MP3...");
-      originalVideoPath = tempFilePath;
-      audioFilePath = await convertVideoToAudio(tempFilePath);
-      tempFilePath = audioFilePath;
-
-      // Delete the original video file after conversion
-      console.log("Deleting original video file:", originalVideoPath);
-      await Deno.remove(originalVideoPath);
-    }
-
-    // Read file into memory
-    const fileData = await Deno.readFile(tempFilePath);
-
-    // Use the appropriate MIME type
-    const mimeType = isVideoFile(fileType) ? "audio/mpeg" : fileType;
-
-    // Call the core transcription function
-    const result = await transcribeCore(fileData, mimeType, options);
+    // Use the unified transcribeFile function
+    // It handles video detection and conversion internally
+    const result = await transcribeFile(tempFilePath, options, fileType);
 
     transcript = result.transcript;
     languageCode = result.languageCode;
 
     if (transcript) {
-
       // Add header with filename if provided
       const finalTranscript = filename
         ? createTranscriptionHeader(filename) + transcript
@@ -113,14 +93,8 @@ export async function transcribeAudioFile({
       await adapter.sendErrorMessage("文字起こしの生成に失敗しました。もう一度お試しください。");
     }
   } finally {
-    // Clean up audio file if it was created from video conversion
-    if (audioFilePath) {
-      console.log("cleaning up converted audio file:", audioFilePath);
-      await tempManager.cleanupFileAndDir(audioFilePath);
-    }
-
-    // Clean up original temp file if no audio conversion was done
-    if (tempFilePath && !audioFilePath) {
+    // Clean up temp file (transcribeFile handles its own converted audio cleanup)
+    if (tempFilePath) {
       console.log("cleaning up temp file:", tempFilePath);
       await tempManager.cleanupFileAndDir(tempFilePath);
     }

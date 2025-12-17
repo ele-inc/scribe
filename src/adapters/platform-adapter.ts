@@ -59,7 +59,7 @@ export class SlackAdapter implements PlatformAdapter {
     return formatProcessingMessageCommon(filename, options);
   }
 
-  async uploadTranscript(transcript: string, filename?: string): Promise<void> {
+  async uploadTranscript(transcript: string, _filename?: string): Promise<void> {
     await uploadTranscriptToSlack(transcript, this.channelId, this.threadTimestamp);
   }
 
@@ -104,7 +104,7 @@ export class DiscordAdapter implements PlatformAdapter {
     return formatProcessingMessageCommon(filename, options);
   }
 
-  async uploadTranscript(transcript: string, filename?: string): Promise<void> {
+  async uploadTranscript(transcript: string, _filename?: string): Promise<void> {
     const channelId = this.interaction.channel?.id || "";
     await uploadTranscriptToDiscord(transcript, channelId);
   }

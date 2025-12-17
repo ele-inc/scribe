@@ -37,15 +37,28 @@ export async function transcribeCore(
   options: TranscriptionOptions
 ): Promise<TranscriptionResult> {
   console.log("Calling ElevenLabs API with options:", options);
+  console.log(`File size: ${fileData.length} bytes, MIME type: ${mimeType}`);
 
-  // Create blob from file data
-  // Always use audio/mpeg for converted video files
-  const blobType = isVideoFile(mimeType) ? "audio/mpeg" : mimeType;
-  const fileBlob = new Blob([fileData], { type: blobType });
+  // Create blob from file data with explicit MIME type
+  // After video conversion, mimeType should be audio/wav
+  const fileBlob = new Blob([fileData], { type: mimeType });
+
+  // Determine filename extension based on MIME type
+  const extension = mimeType === "audio/wav" ? "wav" :
+                    mimeType === "audio/mpeg" ? "mp3" :
+                    mimeType === "audio/mp4" ? "m4a" :
+                    mimeType === "audio/ogg" ? "ogg" :
+                    mimeType === "audio/flac" ? "flac" : "audio";
+  const filename = `audio.${extension}`;
+
+  // Create File object with filename (important for ElevenLabs API)
+  const file = new File([fileBlob], filename, { type: mimeType });
+
+  console.log(`Sending to ElevenLabs: filename=${filename}, type=${mimeType}, size=${file.size}`);
 
   // Call ElevenLabs API
   const scribeResult = await elevenlabs.speechToText.convert({
-    file: fileBlob,
+    file: file,
     model_id: "scribe_v1",
     tag_audio_events: options.tagAudioEvents,
     diarize: options.diarize,
@@ -110,36 +123,62 @@ export async function transcribeCore(
 }
 
 /**
+ * Get MIME type from file extension
+ */
+export function getMimeTypeFromExtension(extension: string): string {
+  const mimeTypes: Record<string, string> = {
+    mp3: "audio/mpeg",
+    mp4: "video/mp4",
+    m4a: "audio/mp4",
+    wav: "audio/wav",
+    ogg: "audio/ogg",
+    webm: "video/webm",
+    avi: "video/x-msvideo",
+    mov: "video/quicktime",
+    mkv: "video/x-matroska",
+    flac: "audio/flac",
+  };
+  return mimeTypes[extension.toLowerCase()] || "application/octet-stream";
+}
+
+/**
  * Transcribe a file from disk
+ * Handles video-to-audio conversion automatically
+ *
  * @param filePath - Path to the audio/video file
+ * @param mimeType - MIME type of the file (if known). If not provided, will be inferred from extension.
  * @param options - Transcription options
  * @returns Transcription result
  */
 export async function transcribeFile(
   filePath: string,
-  options: TranscriptionOptions
+  options: TranscriptionOptions,
+  mimeType?: string
 ): Promise<TranscriptionResult> {
   let processedFilePath = filePath;
   let audioFilePath: string | null = null;
 
   try {
-    // Determine MIME type based on file extension
+    // Determine MIME type: use provided mimeType, or infer from extension
     const extension = filePath.split('.').pop()?.toLowerCase() || '';
-    const mimeType = getMimeType(extension);
+    const effectiveMimeType = mimeType || getMimeTypeFromExtension(extension);
 
-    // Check if the file is a video and convert to MP3 if needed
-    if (isVideoFile(mimeType)) {
-      console.log("Detected video file, converting to MP3...");
+    console.log(`Processing file: ${filePath}`);
+    console.log(`MIME type: ${effectiveMimeType} (provided: ${mimeType || 'none, inferred from extension'})`);
+
+    // Check if the file is a video and convert to audio if needed
+    if (isVideoFile(effectiveMimeType)) {
+      console.log("Detected video file, converting to audio...");
       audioFilePath = await convertVideoToAudio(filePath);
       processedFilePath = audioFilePath;
       console.log("Conversion complete:", audioFilePath);
     }
 
-    // Read the processed file (original audio or converted MP3)
+    // Read the processed file (original audio or converted audio)
     const fileData = await Deno.readFile(processedFilePath);
 
-    // Use the appropriate MIME type
-    const finalMimeType = audioFilePath ? "audio/mpeg" : mimeType;
+    // Use audio/wav for converted files (our ffmpeg outputs WAV)
+    const finalMimeType = audioFilePath ? "audio/wav" : effectiveMimeType;
 
     // Call the core transcription function
     const result = await transcribeCore(fileData, finalMimeType, options);
@@ -154,20 +193,4 @@ export async function transcribeFile(
       await Deno.remove(audioDir).catch(() => {});
     }
   }
-}
-
-function getMimeType(extension: string): string {
-  const mimeTypes: Record<string, string> = {
-    mp3: "audio/mpeg",
-    mp4: "video/mp4",
-    m4a: "audio/mp4",
-    wav: "audio/wav",
-    ogg: "audio/ogg",
-    webm: "video/webm",
-    avi: "video/x-msvideo",
-    mov: "video/quicktime",
-    mkv: "video/x-matroska",
-    flac: "audio/flac",
-  };
-  return mimeTypes[extension] || "application/octet-stream";
 }
