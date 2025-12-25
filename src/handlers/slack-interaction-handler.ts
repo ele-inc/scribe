@@ -32,7 +32,6 @@ function createTranscriptionModal(
     {
       type: "input",
       block_id: "url_block",
-      optional: true,
       element: {
         type: "plain_text_input",
         action_id: "url_input",
@@ -44,7 +43,7 @@ function createTranscriptionModal(
       },
       label: {
         type: "plain_text",
-        text: "📎 ファイルURL",
+        text: "📎 ファイルURL（必須）",
       },
       hint: {
         type: "plain_text",
