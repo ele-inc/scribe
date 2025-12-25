@@ -11,6 +11,8 @@ import {
 } from "../services/file-processor.ts";
 import { createPlatformAdapter } from "../adapters/platform-adapter.ts";
 import { TranscriptionProcessor, FileAttachment } from "../services/transcription-processor.ts";
+import { sendSlackMessage } from "../clients/slack.ts";
+import { createTranscriptionButtonBlocks } from "./slack-interaction-handler.ts";
 
 // Set to track processed events (with size limit to prevent memory leak)
 const processedEvents = new Set<string>();
@@ -67,8 +69,14 @@ export async function handleAppMention(event: SlackEvent) {
 
   // Check if the mention includes files or cloud URLs
   if ((!event.files || event.files.length === 0) && cloudUrls.length === 0) {
-    const { adapter } = createSlackProcessor(event);
-    await adapter.sendUsageMessage();
+    // Send button message for interactive transcription setup
+    const blocks = createTranscriptionButtonBlocks();
+    await sendSlackMessage(
+      event.channel,
+      "🎙️ 文字起こしボット - 設定して実行ボタンを押してください",
+      event.ts,
+      blocks
+    );
     return;
   }
 

@@ -1,5 +1,6 @@
 import { handleDiscordInteraction } from "./handlers/discord-handler.ts";
 import { handleSlackEvents } from "./handlers/slack-handler.ts";
+import { handleSlackInteractions } from "./handlers/slack-interaction-handler.ts";
 import { config } from "./core/config.ts";
 import { textResponse, methodNotAllowed } from "./utils/http-utils.ts";
 
@@ -26,9 +27,14 @@ Deno.serve({ port }, async (req) => {
     return await handleDiscordInteraction(req);
   }
 
-  // Slack endpoint
+  // Slack events endpoint
   if (pathname === "/slack/events" && req.method === "POST") {
     return await handleSlackEvents(req);
+  }
+
+  // Slack interactions endpoint (buttons, modals)
+  if (pathname === "/slack/interactions" && req.method === "POST") {
+    return await handleSlackInteractions(req);
   }
 
   return methodNotAllowed(['GET', 'POST']);
