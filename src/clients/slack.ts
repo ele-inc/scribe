@@ -1,9 +1,13 @@
 import { config } from "../core/config.ts";
 
+// deno-lint-ignore no-explicit-any
+type SlackBlock = any;
+
 export async function sendSlackMessage(
   channel: string,
   text: string,
   threadTs?: string,
+  blocks?: SlackBlock[],
 ) {
   const response = await fetch("https://slack.com/api/chat.postMessage", {
     method: "POST",
@@ -15,6 +19,53 @@ export async function sendSlackMessage(
       channel,
       text,
       thread_ts: threadTs,
+      ...(blocks && { blocks }),
+    }),
+  });
+
+  return await response.json();
+}
+
+/**
+ * Open a modal dialog in Slack
+ */
+export async function openSlackModal(
+  triggerId: string,
+  // deno-lint-ignore no-explicit-any
+  view: any,
+) {
+  const response = await fetch("https://slack.com/api/views.open", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${config.slackBotToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      trigger_id: triggerId,
+      view,
+    }),
+  });
+
+  return await response.json();
+}
+
+/**
+ * Update an existing modal view in Slack
+ */
+export async function updateSlackModal(
+  viewId: string,
+  // deno-lint-ignore no-explicit-any
+  view: any,
+) {
+  const response = await fetch("https://slack.com/api/views.update", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${config.slackBotToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      view_id: viewId,
+      view,
     }),
   });
 
