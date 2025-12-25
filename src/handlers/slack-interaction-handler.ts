@@ -230,7 +230,7 @@ export function createTranscriptionButtonBlocks() {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: "🎙️ *文字起こしボット*\n音声・動画ファイルのURLから文字起こしを行います。",
+        text: "🎙️ *文字起こしボット*\n\n*URLから文字起こし*\n下のボタンから設定・実行できます\n\n*ファイルから文字起こし*\nファイルを添付してメンションしてください",
       },
     },
     {
@@ -241,7 +241,7 @@ export function createTranscriptionButtonBlocks() {
           type: "button",
           text: {
             type: "plain_text",
-            text: "⚙️ 設定して実行",
+            text: "⚙️ URLから文字起こし",
             emoji: true,
           },
           style: "primary",
