@@ -61,6 +61,22 @@ deno run --allow-net --allow-env scripts/register-discord-commands.ts
 5. **生成されたURLをブラウザで直接開く**
 6. Botを追加したいサーバーを選択して「認証」をクリック
 
+<img width="1106" height="1481" alt="CleanShot 2026-02-05 at 20 45 53" src="https://github.com/user-attachments/assets/8ceafeb0-0f9d-4e0c-8e8c-186c76ca3d06" />
+
+<img width="411" height="562" alt="CleanShot 2026-02-05 at 20 47 53" src="https://github.com/user-attachments/assets/e9dbf9dc-1c30-45d0-b96f-e6679400d23b" />
+
+
+## 5. チャンネルへの追加
+
+チャンネルごとの権限設定で：
+
+1. チャンネル設定 → 権限
+2. Botのロールまたはメンバーを追加
+3. 必要な権限を許可/拒否
+
+
+
+
 ### 注意事項
 - `bot` scopeを選択しないと、スラッシュコマンドは使えてもBotがメッセージを送信できません
 - URLは必ず生成されたものをそのまま使用してください
