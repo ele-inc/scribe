@@ -27,7 +27,7 @@ import {
 import { createPlatformAdapter } from "../adapters/platform-adapter.ts";
 import { TranscriptionProcessor, FileAttachment } from "../services/transcription-processor.ts";
 import { getErrorMessage } from "../utils/errors.ts";
-import { getUsageMessage, getUnsupportedContentMessage } from "../utils/messages.ts";
+import { getDiscordUsageMessage, getUnsupportedContentMessage } from "../utils/messages.ts";
 
 /**
  * Execute async function in background without blocking response
@@ -123,7 +123,7 @@ function handleTranscribeCommand(
 
   // If neither URL nor file is provided
   if (!urlOption && !fileOption) {
-    return replyToInteraction(getUsageMessage(), true);
+    return replyToInteraction(getDiscordUsageMessage(), true);
   }
 
   // Defer the reply immediately (Discord requires response within 3 seconds)
