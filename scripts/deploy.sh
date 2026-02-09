@@ -1,9 +1,15 @@
 #!/bin/bash
 
-echo "🚀 Deploying with all environment variables and CPU optimization..."
-
 # Load environment variables from .env file
 source .env
+
+# Check gcloud authentication
+if ! gcloud auth print-access-token &>/dev/null; then
+  echo "⚠️  gcloud にログインしていません。ログインを開始します..."
+  gcloud auth login
+fi
+
+echo "🚀 Deploying with all environment variables and CPU optimization..."
 
 # Extract private key from JSON
 GOOGLE_PRIVATE_KEY=$(echo "$GOOGLE_SERVICE_ACCOUNT_KEY" | python3 -c "import sys, json; print(json.load(sys.stdin)['private_key'])")
@@ -19,6 +25,7 @@ fi
 
 # Deploy with all environment variables and CPU optimization
 gcloud run deploy scribe-bot \
+  --project="$GCP_PROJECT_ID" \
   --source . \
   --region=asia-northeast1 \
   --memory=16Gi \
@@ -35,4 +42,4 @@ gcloud run deploy scribe-bot \
 
 echo "✅ Deployed with all environment variables"
 echo "Service URL:"
-gcloud run services describe scribe-bot --region=asia-northeast1 --format="value(status.url)"
+gcloud run services describe scribe-bot --project="$GCP_PROJECT_ID" --region=asia-northeast1 --format="value(status.url)"
