@@ -10,6 +10,7 @@ export const SUPPORTED_SERVICES = [
   "Google Drive",
   "Dropbox",
   "YouTube",
+  "Vimeo",
   "Loom",
   "Utage",
   "HLS(.m3u8)",

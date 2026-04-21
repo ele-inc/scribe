@@ -8,6 +8,7 @@ import { createPlatformAdapter } from "../adapters/platform-adapter.ts";
 import { TranscriptionProcessor } from "../services/transcription-processor.ts";
 import { TranscriptionOptions } from "../core/types.ts";
 import { extractMediaInfo } from "../services/file-processor.ts";
+import { SUPPORTED_SERVICES } from "../utils/messages.ts";
 
 /**
  * Create the transcription options modal view
@@ -234,7 +235,7 @@ export function createTranscriptionButtonBlocks() {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: "🎙️ *文字起こしボット*\n使い方は2通りあります。",
+        text: "🎙️ *文字起こしボット*\nURL から、またはファイル添付から文字起こしを実行できます。",
       },
     },
     {
@@ -244,7 +245,7 @@ export function createTranscriptionButtonBlocks() {
       type: "header",
       text: {
         type: "plain_text",
-        text: "📎 方法1: URLから文字起こし",
+        text: "📎 方法1: 動画または音声のURLから文字起こし",
         emoji: true,
       },
     },
@@ -252,7 +253,7 @@ export function createTranscriptionButtonBlocks() {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: "YouTube / Google Drive / Vimeo などのURLを貼って実行します。\n下のボタンから設定・実行してください。",
+        text: `対応サービス: ${SUPPORTED_SERVICES.join(" / ")}\n下のボタンから設定・実行してください。`,
       },
     },
     {
@@ -263,7 +264,7 @@ export function createTranscriptionButtonBlocks() {
           type: "button",
           text: {
             type: "plain_text",
-            text: "⚙️ URLから文字起こし",
+            text: "⚙️ 動画または音声のURLから文字起こし",
             emoji: true,
           },
           style: "primary",
