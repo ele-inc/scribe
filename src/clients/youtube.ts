@@ -162,6 +162,48 @@ function getProxyArgs(): string[] {
   return config.youtubeProxy ? ["--proxy", config.youtubeProxy] : [];
 }
 
+// Errors that typically resolve on retry (bot detection on the proxy IP,
+// transient rate limits). Permanent errors like "Video unavailable" or
+// "Private video" are not listed — retrying those wastes time and bandwidth.
+const RETRIABLE_YTDLP_ERROR_PATTERNS: RegExp[] = [
+  /sign in to confirm you[''’]?re not a bot/i,
+  /confirm you[''’]?re not a bot/i,
+  /HTTP Error 429/i,
+  /HTTP Error 403/i,
+];
+
+function isRetriableYtDlpError(stderrText: string): boolean {
+  return RETRIABLE_YTDLP_ERROR_PATTERNS.some((p) => p.test(stderrText));
+}
+
+async function runYtDlp(
+  args: string[],
+  maxAttempts = 3,
+): Promise<Deno.CommandOutput> {
+  let lastResult: Deno.CommandOutput | undefined;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const command = new Deno.Command("yt-dlp", {
+      args,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    lastResult = await command.output();
+
+    if (lastResult.success) return lastResult;
+
+    const stderrText = decoder.decode(lastResult.stderr);
+    if (attempt === maxAttempts || !isRetriableYtDlpError(stderrText)) {
+      return lastResult;
+    }
+
+    console.warn(
+      `[yt-dlp] attempt ${attempt}/${maxAttempts} hit bot detection or rate limit, retrying...`,
+    );
+    await new Promise((r) => setTimeout(r, 800 * attempt));
+  }
+  return lastResult as Deno.CommandOutput;
+}
+
 export function isYouTubeUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
@@ -232,20 +274,14 @@ export async function getYouTubeFileMetadata(
   const proxyArgs = getProxyArgs();
 
   try {
-    const command = new Deno.Command("yt-dlp", {
-      args: [
-        "--dump-json",
-        "--skip-download",
-        "--no-warnings",
-        ...cookieArgs,
-        ...proxyArgs,
-        url,
-      ],
-      stdout: "piped",
-      stderr: "piped",
-    });
-
-    const { success, stdout, stderr } = await command.output();
+    const { success, stdout, stderr } = await runYtDlp([
+      "--dump-json",
+      "--skip-download",
+      "--no-warnings",
+      ...cookieArgs,
+      ...proxyArgs,
+      url,
+    ]);
 
     if (!success) {
       const errorText = decoder.decode(stderr).trim();
@@ -314,28 +350,22 @@ export async function downloadYouTubeAudioToPath(
   try {
     // Try multiple format selection strategies for better compatibility
     // First try audio-only formats, then fallback to video formats if needed
-    const command = new Deno.Command("yt-dlp", {
-      args: [
-        "-f",
-        "bestaudio[ext=m4a]/bestaudio/best[ext=m4a]/bestaudio[acodec!=none]/bestaudio/best[acodec!=none][height<=720]/best[height<=720]",
-        "--extract-audio",
-        "--audio-format",
-        "mp3",
-        "--audio-quality",
-        "192K",
-        "--no-playlist",
-        "--ignore-errors", // Continue even if some formats fail
-        ...cookieArgs,
-        ...proxyArgs,
-        "-o",
-        outputPath,
-        url,
-      ],
-      stdout: "piped",
-      stderr: "piped",
-    });
-
-    const { success, stderr } = await command.output();
+    const { success, stderr } = await runYtDlp([
+      "-f",
+      "bestaudio[ext=m4a]/bestaudio/best[ext=m4a]/bestaudio[acodec!=none]/bestaudio/best[acodec!=none][height<=720]/best[height<=720]",
+      "--extract-audio",
+      "--audio-format",
+      "mp3",
+      "--audio-quality",
+      "192K",
+      "--no-playlist",
+      "--ignore-errors", // Continue even if some formats fail
+      ...cookieArgs,
+      ...proxyArgs,
+      "-o",
+      outputPath,
+      url,
+    ]);
     const stderrText = decoder.decode(stderr).trim();
 
     // Check if output file exists first (yt-dlp may report errors for warnings)
