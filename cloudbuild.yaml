@@ -46,6 +46,7 @@ steps:
           --min-instances=0 \
           --max-instances=1 \
           --port=8080 \
+          --clear-env-vars \
           --set-secrets="$${mapping}"
 
 options:
