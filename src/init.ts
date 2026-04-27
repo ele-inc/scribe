@@ -25,7 +25,7 @@ function escapeEnvValue(value: string): string {
 }
 
 export async function runInit(envPath: string): Promise<void> {
-  console.log("transcribe-bot init — configure API keys\n");
+  console.log("scribe init — configure API keys\n");
 
   try {
     await Deno.stat(envPath);
@@ -62,5 +62,5 @@ export async function runInit(envPath: string): Promise<void> {
   }
 
   console.log(`\nConfig saved to ${envPath}`);
-  console.log("You can now run: transcribe-bot <url-or-file>");
+  console.log("You can now run: scribe <url-or-file>");
 }

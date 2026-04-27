@@ -10,7 +10,7 @@ import { runInit } from "./init.ts";
 
 function userConfigEnvPath(): string {
   const home = Deno.env.get("HOME") || Deno.env.get("USERPROFILE") || "";
-  return join(home, ".config", "transcribe-bot", ".env");
+  return join(home, ".config", "scribe", ".env");
 }
 
 async function loadEnvFromKnownLocations(): Promise<void> {
@@ -146,11 +146,11 @@ function printHelp(): void {
   console.log(`
 ElevenLabs Transcription CLI
 
-Usage: transcribe-bot [options] <file-or-url>
-       transcribe-bot init
+Usage: scribe [options] <file-or-url>
+       scribe init
 
 Subcommands:
-  init                 Interactively set API keys (saved to ~/.config/transcribe-bot/.env)
+  init                 Interactively set API keys (saved to ~/.config/scribe/.env)
 
 Arguments:
   <file-or-url>        Path to audio/video file, or supported URL (Google Drive/Dropbox/YouTube)
@@ -252,7 +252,7 @@ async function main() {
     const apiKey = Deno.env.get("ELEVENLABS_API_KEY");
     if (!apiKey) {
       console.error("Error: ELEVENLABS_API_KEY not found.");
-      console.error("Run `transcribe-bot init` to configure API keys.");
+      console.error("Run `scribe init` to configure API keys.");
       Deno.exit(1);
     }
 
