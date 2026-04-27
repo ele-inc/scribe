@@ -77,21 +77,9 @@ jobs:
             sha256sum "$file" | tee "${file}.sha256"
           fi
 
-      - name: Upload to source release (private)
+      - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            ${{ matrix.asset }}.tar.gz
-            ${{ matrix.asset }}.tar.gz.sha256
-            ${{ matrix.asset }}.zip
-            ${{ matrix.asset }}.zip.sha256
-          fail_on_unmatched_files: false
-
-      - name: Upload to public mirror release
-        uses: softprops/action-gh-release@v2
-        with:
-          repository: ele-inc/transcribe-bot-releases
-          token: ${{ secrets.RELEASES_REPO_TOKEN }}
           files: |
             ${{ matrix.asset }}.tar.gz
             ${{ matrix.asset }}.tar.gz.sha256
