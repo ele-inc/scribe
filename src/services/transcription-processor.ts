@@ -16,7 +16,7 @@ import { getFileExtensionFromMime } from "../utils/utils.ts";
 import { cloudServiceManager } from "./cloud-service-manager.ts";
 import { cloudServiceRegistry } from "./cloud-service.ts";
 import { getErrorMessage } from "../utils/errors.ts";
-import { acquireSlot, activeCount, isAtCapacity } from "./concurrency-limiter.ts";
+import { acquireSlot, activeCount, isAtCapacity, ShuttingDownError } from "./concurrency-limiter.ts";
 
 export interface FileAttachment {
   url: string;
@@ -113,7 +113,18 @@ export class TranscriptionProcessor {
           `🕐 現在 ${activeCount()} 件処理中のため順番待ちです...`,
         );
       }
-      const release = await acquireSlot();
+      let release: (() => void) | undefined;
+      try {
+        release = await acquireSlot();
+      } catch (error) {
+        if (error instanceof ShuttingDownError) {
+          await this.adapter.sendErrorMessage(
+            "サーバが再起動中のため受け付けできませんでした。少し待ってから再度お試しください。",
+          );
+          return;
+        }
+        throw error;
+      }
       try {
         await this.processCloudUrl(url, options, downloadOpts);
       } finally {
@@ -216,7 +227,18 @@ export class TranscriptionProcessor {
           `🕐 現在 ${activeCount()} 件処理中のため順番待ちです...`,
         );
       }
-      const release = await acquireSlot();
+      let release: (() => void) | undefined;
+      try {
+        release = await acquireSlot();
+      } catch (error) {
+        if (error instanceof ShuttingDownError) {
+          await this.adapter.sendErrorMessage(
+            "サーバが再起動中のため受け付けできませんでした。少し待ってから再度お試しください。",
+          );
+          return;
+        }
+        throw error;
+      }
       try {
         await this.processAttachment(attachment, options);
       } finally {

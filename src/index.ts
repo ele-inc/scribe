@@ -3,8 +3,11 @@ import { handleSlackEvents } from "./handlers/slack-handler.ts";
 import { handleSlackInteractions } from "./handlers/slack-interaction-handler.ts";
 import { config } from "./core/config.ts";
 import { textResponse, methodNotAllowed } from "./utils/http-utils.ts";
+import { installGracefulShutdown } from "./services/concurrency-limiter.ts";
 
 console.log(`Function "elevenlabs-scribe-bot" up and running!`);
+
+installGracefulShutdown();
 
 const port = config.port;
 
