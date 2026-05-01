@@ -32,8 +32,8 @@ steps:
           --project="$PROJECT_ID" \
           --source=. \
           --region=asia-northeast1 \
-          --memory=16Gi \
-          --cpu=4 \
+          --memory=24Gi \
+          --cpu=6 \
           --timeout=3600 \
           --no-allow-unauthenticated \
           --execution-environment=gen2 \
