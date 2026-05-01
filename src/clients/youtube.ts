@@ -175,6 +175,9 @@ const RETRIABLE_YTDLP_ERROR_PATTERNS: RegExp[] = [
   /confirm you[''’]?re not a bot/i,
   /HTTP Error 429/i,
   /HTTP Error 403/i,
+  /timed out/i,
+  /Unable to download webpage/i,
+  /Connection reset/i,
 ];
 
 function isRetriableYtDlpError(stderrText: string): boolean {
