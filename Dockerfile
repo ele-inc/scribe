@@ -5,7 +5,7 @@ FROM denoland/deno:latest
 # curl-cffi enables yt-dlp の impersonation。Vimeo は datacenter IP からの無印リクエストを
 # 黙って絞るため、Chrome ふりをしないと Cloud Run から応答が返らない。
 RUN apt-get update && apt-get install -y ffmpeg python3-pip && rm -rf /var/lib/apt/lists/* \
-    && pip3 install --break-system-packages yt-dlp curl-cffi
+    && pip3 install --break-system-packages -U "yt-dlp[default,curl-cffi]"
 
 WORKDIR /app
 
